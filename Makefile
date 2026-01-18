@@ -20,20 +20,14 @@ export FETCH_O := $(CURDIR)/$(o)/fetched
 TMP ?= /tmp
 export TMPDIR := $(TMP)
 
-uname_s := $(shell uname -s)
-uname_m := $(shell uname -m)
-os := $(if $(filter Darwin,$(uname_s)),darwin,linux)
-arch := $(subst aarch64,arm64,$(uname_m))
-platforms := darwin-arm64 linux-arm64 linux-x86_64
-platform := $(os)-$(arch)
+# Platform for build scripts (all deps use wildcard "*" platform)
+platform := linux-x86_64
 
-include bootstrap.mk
+include cook.mk
 include lib/cook.mk
 include 3p/cosmos/cook.mk
 include 3p/tl/cook.mk
 include 3p/teal-types/cook.mk
-
-include cook.mk
 
 # landlock-make sandbox constraints (only effective when using landlock-make)
 # global defaults: read-only access, no network, basic stdio
