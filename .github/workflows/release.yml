@@ -1,0 +1,58 @@
+name: release
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Mark release as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PRERELEASE: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: make check test build
+        shell: bash -x {0}
+        run: bin/make -j check test build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cosmic-lua
+          path: o/bin/cosmic
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.sha }}
+          PRERELEASE_FLAG: ${{ (github.event.inputs.prerelease == 'true' || (github.event.inputs.prerelease == '' && env.PRERELEASE == 'true')) && '--prerelease' || '' }}
+        run: |
+          mkdir -p release
+          cp artifacts/cosmic-lua/cosmic release/cosmic-lua
+          chmod +x release/cosmic-lua
+          tag="$(date -u +%Y-%m-%d)-${GITHUB_SHA::7}"
+          (cd release && sha256sum cosmic-lua > SHA256SUMS && cat SHA256SUMS)
+          gh release create "$tag" \
+            ${PRERELEASE_FLAG} \
+            --title "$tag" \
+            release/cosmic-lua release/SHA256SUMS
