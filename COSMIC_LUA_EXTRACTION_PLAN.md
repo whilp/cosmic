@@ -3,7 +3,63 @@
 ## Overview
 This document provides a comprehensive plan to extract all relevant build components from the `whilp/world` repository to create a standalone `cosmic` repository that builds the `cosmic-lua` binary.
 
-## 1. Components Analysis
+---
+
+## SIMPLIFIED PLAN (Updated 2026-01-18)
+
+**The following simplifications reduce scope and complexity:**
+
+### Excluded Components
+- ❌ **lib/skill**: Entire skill system (bootstrap, hook, pr) - skip completely
+- ❌ **lib/platform.tl, lib/utils.tl, lib/ulid.tl, lib/version.lua**: Not required by cosmic
+- ❌ **bin/run-test, bin/hook**: Optional helper scripts
+- ❌ **.stylua.toml, .luacheckrc**: Linter configs
+- ❌ **AST-grep**: All ast-grep rules and integration
+- ❌ **lib/test/**: Test framework (use simple teal + busted or minimal runner)
+
+### GitHub Actions
+- ✅ Pin all action versions (e.g., `actions/checkout@v4`, `actions/upload-artifact@v4`)
+
+### Minimal File Structure
+```
+cosmic/
+├── .github/workflows/
+│   ├── pr.yml           (pinned actions)
+│   └── release.yml      (pinned actions)
+├── 3p/
+│   ├── cosmos/          (version.lua, cook.mk, test_cosmos.tl)
+│   ├── tl/              (version.lua, cook.mk, run-teal.tl, test_tl.tl)
+│   └── teal-types/      (version.lua, cook.mk)
+├── bin/
+│   ├── cosmic           (bootstrap wrapper)
+│   └── make             (make wrapper)
+├── lib/
+│   ├── build/           (build-fetch.tl, build-stage.tl, reporter.tl, cook.mk)
+│   ├── checker/         (common.tl, cook.mk)
+│   ├── cosmic/          (*.tl, tl-gen.lua, .args, cook.mk)
+│   └── types/           (*.d.tl type declarations)
+├── bootstrap.mk
+├── cook.mk              (simplified - no skill module)
+├── Makefile             (simplified - no skill, no extra libs)
+├── tlconfig.lua
+├── LICENSE
+├── .gitignore
+└── README.md
+```
+
+**Estimated files: ~35-40** (vs 50+ in full plan)
+
+### Simplified lib/cosmic/cook.mk
+Remove skill dependency:
+```make
+cosmic_deps := cosmos tl teal-types  # removed 'skill'
+$(cosmic_bin): $(cosmic_libs) $(cosmic_main) ...
+    # No $(skill_libs), no .lua/skill directory
+```
+
+---
+
+## 1. Components Analysis (Full Details Below)
 
 ### 1.1 Core Components
 
@@ -130,7 +186,7 @@ cosmic-lua
   3. Creates GitHub release with date-sha tag
 ```
 
-### 2.2 Simplified Workflow for Cosmic Repository
+### 2.2 Simplified Workflow for Cosmic Repository (UPDATED - Pinned Actions)
 
 #### PR Workflow (simplified)
 ```yaml
@@ -140,29 +196,56 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - checkout
-      - make ci (teal, test, build)
+      - uses: actions/checkout@v4
+      - name: make ci
+        run: bin/make -j ci
 ```
 
 #### Release Workflow (linux-x86_64 only)
 ```yaml
 name: release
 on:
-  schedule: ['0 6 * * *']  # Daily at 6 AM UTC
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
   workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - checkout
-      - make check test build
-      - upload cosmic binary as artifact
+      - uses: actions/checkout@v4
+
+      - name: make check test build
+        run: bin/make -j check test build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cosmic-lua
+          path: o/bin/cosmic
+
   release:
     needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - download artifacts
-      - create GitHub release with cosmic-lua
-      - generate SHA256SUMS
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release
+          cp artifacts/cosmic-lua/cosmic release/cosmic-lua
+          chmod +x release/cosmic-lua
+          tag="$(date -u +%Y-%m-%d)-${GITHUB_SHA::7}"
+          (cd release && sha256sum cosmic-lua > SHA256SUMS)
+          gh release create "$tag" \
+            --title "$tag" \
+            release/cosmic-lua release/SHA256SUMS
 ```
 
 ## 3. Extraction Steps
@@ -205,21 +288,19 @@ cp bootstrap.mk bootstrap.mk
 cp cook.mk cook.mk
 ```
 
-#### Step 2: Simplify Main Makefile
-- Remove home, nvim, and other 3p modules not needed for cosmic
+#### Step 2: Simplify Main Makefile (UPDATED)
+- Remove home, nvim, skill, and other 3p modules not needed
 - Keep only:
   - bootstrap module
   - cosmos module
   - tl module
   - teal-types module
   - lib/cosmic module
-  - lib/skill module
   - lib/build module
-  - lib/test module
   - lib/checker module
 - Update includes to only reference kept modules
 
-#### Step 3: Copy Module cook.mk Files
+#### Step 3: Copy Module cook.mk Files (UPDATED)
 ```bash
 # 3p modules
 cp 3p/cosmos/cook.mk 3p/cosmos/cook.mk
@@ -229,15 +310,15 @@ cp 3p/teal-types/cook.mk 3p/teal-types/cook.mk
 # lib modules
 cp lib/cook.mk lib/cook.mk
 cp lib/cosmic/cook.mk lib/cosmic/cook.mk
-cp lib/skill/cook.mk lib/skill/cook.mk
 cp lib/build/cook.mk lib/build/cook.mk
-cp lib/test/cook.mk lib/test/cook.mk
 cp lib/checker/cook.mk lib/checker/cook.mk
+# SKIP: lib/skill/cook.mk, lib/test/cook.mk
 ```
 
-#### Step 4: Simplify lib/cook.mk
+#### Step 4: Simplify lib/cook.mk (UPDATED)
 - Remove all module includes not needed
-- Keep only: build, checker, cosmic, skill, test
+- Keep only: build, checker, cosmic
+- Remove: skill, test, platform, utils, ulid, version
 
 ### Phase 3: Source Code Extraction
 
@@ -256,7 +337,7 @@ cp 3p/tl/test_tl.tl 3p/tl/test_tl.tl
 cp -r 3p/teal-types/ 3p/teal-types/
 ```
 
-#### Step 2: Copy lib/cosmic
+#### Step 2: Copy lib/cosmic (UPDATED)
 ```bash
 cp -r lib/cosmic/ lib/cosmic/
 # Includes:
@@ -266,55 +347,35 @@ cp -r lib/cosmic/ lib/cosmic/
 # - test_*.tl files
 ```
 
-#### Step 3: Copy lib/skill
+#### Step 3: Copy Supporting Libraries (UPDATED - No skill)
 ```bash
-cp -r lib/skill/ lib/skill/
-# Includes:
-# - *.tl files (init, bootstrap, hook, pr, pr_comments)
-# - test_*.tl files
-```
-
-#### Step 4: Copy Supporting Libraries
-```bash
-# Core lib files
-cp lib/platform.tl lib/platform.tl
-cp lib/utils.tl lib/utils.tl
-cp lib/ulid.tl lib/ulid.tl
-cp lib/version.lua lib/version.lua
-
 # Build scripts
 cp -r lib/build/ lib/build/
 
-# Test framework
-cp -r lib/test/ lib/test/
-
-# Checker framework
-cp -r lib/checker/ lib/checker/
+# Checker framework (common.tl only)
+mkdir -p lib/checker
+cp lib/checker/common.tl lib/checker/common.tl
+cp lib/checker/cook.mk lib/checker/cook.mk
 
 # Type declarations
 cp -r lib/types/ lib/types/
+
+# SKIP: lib/skill, lib/test, lib/platform, lib/utils, lib/ulid, lib/version
 ```
 
-#### Step 5: Copy bin/ Scripts
+#### Step 4: Copy bin/ Scripts (UPDATED)
 ```bash
 cp bin/cosmic bin/cosmic
 cp bin/make bin/make
-cp bin/run-test bin/run-test
-cp bin/hook bin/hook
+# SKIP: bin/run-test, bin/hook
 ```
 
-### Phase 4: Configuration Files
+### Phase 4: Configuration Files (UPDATED)
 
-#### Step 1: Copy Linter Configs
+#### Step 1: Copy Essential Configs Only
 ```bash
-cp .stylua.toml .stylua.toml
-cp .luacheckrc .luacheckrc
 cp tlconfig.lua tlconfig.lua
-```
-
-#### Step 2: Copy AST-grep Rules (if used)
-```bash
-cp -r .ast-grep/ .ast-grep/
+# SKIP: .stylua.toml, .luacheckrc, .ast-grep/
 ```
 
 ### Phase 5: GitHub Workflows
@@ -747,11 +808,15 @@ Could create docs site with:
 
 ## Summary
 
-This plan extracts approximately:
+### Simplified Plan (Updated 2026-01-18)
+
+This **simplified** plan extracts approximately:
 - **3 3p modules** (cosmos, tl, teal-types) from 20+ in world
-- **5 lib modules** (cosmic, skill, build, test, checker) from 15+ in world
-- **~50 source files** instead of 200+
+- **3 lib modules** (cosmic, build, checker) from 15+ in world - **NO skill, test, platform, utils, ulid**
+- **~35-40 source files** instead of 200+
 - **1 main build target** (cosmic) instead of multiple (home, cosmic, bootstrap, nvim bundles)
 - **Single platform releases** (linux-x86_64) instead of 3 platforms
+- **Pinned GitHub Actions** (checkout@v4, upload-artifact@v4, download-artifact@v4)
+- **No linters** (no .stylua.toml, .luacheckrc, ast-grep)
 
-The result is a focused, maintainable repository dedicated to building and distributing the cosmic-lua binary with all its functionality intact.
+The result is a **minimal, focused repository** dedicated to building and distributing the cosmic-lua binary with core functionality only (teal, cosmic library, cosmopolitan lua).
