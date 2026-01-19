@@ -52,8 +52,7 @@ $(o)/%: %
 	@$(cp) $< $@
 
 # compile .tl files to .lua (extension changes)
-# Use $$(tl_staged) for secondary expansion - variable is set after includes
-$(o)/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files) $$(tl_staged)
+$(o)/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files)
 	@mkdir -p $(@D)
 	@$(bootstrap_cosmic) --compile $< > $@
 

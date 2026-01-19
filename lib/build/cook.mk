@@ -9,8 +9,7 @@ build_tests := $(wildcard lib/build/test_*.tl)
 
 .PRECIOUS: $(build_files)
 
-# Build scripts use cosmic's bundled teal (no tl_staged dependency)
-# This breaks the circular dependency: build scripts -> fetch -> tl_staged -> build scripts
+# Build scripts: compile to o/bin/ and make executable
 $(build_files): $(o)/bin/%.lua: lib/build/%.tl | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@$(bootstrap_cosmic) --compile $< > $@
