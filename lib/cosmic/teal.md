@@ -1,7 +1,8 @@
 # teal
 
  Teal compilation and type-checking.
- Provides --compile and --check functionality for cosmic-lua.
+ --compile uses lax mode for permissive compilation.
+ --check uses strict mode for thorough type checking.
 
 ## Types
 

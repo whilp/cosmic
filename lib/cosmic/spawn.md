@@ -25,8 +25,6 @@
 
 ### pipe:read
 
-### pipe:close
-
 ### handle:wait
 
 ### handle:read
