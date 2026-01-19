@@ -1,17 +1,20 @@
 --- Extract documentation from Teal files and render as markdown.
 --- Parses doc comments, records, functions, and examples from .tl files.
 
+--- A function parameter with type and description.
 local record Param
   name: string
   param_type: string
   description: string
 end
 
+--- A function return value with type and description.
 local record Return
   return_type: string
   description: string
 end
 
+--- Documentation for a function.
 local record FunctionDoc
   name: string
   description: string
@@ -22,6 +25,7 @@ local record FunctionDoc
   is_local: boolean
 end
 
+--- Documentation for a record type.
 local record RecordDoc
   name: string
   description: string
@@ -29,6 +33,7 @@ local record RecordDoc
   line: integer
 end
 
+--- Documentation for an example function.
 local record ExampleDoc
   name: string
   body: string
@@ -36,6 +41,7 @@ local record ExampleDoc
   line: integer
 end
 
+--- Complete documentation for a module.
 local record ModuleDoc
   file: string
   module_doc: string
@@ -44,7 +50,11 @@ local record ModuleDoc
   examples: {ExampleDoc}
 end
 
--- Extract leading doc comment (--- style) before a position
+--- Extract leading doc comment (--- style) before a position.
+--- Scans backwards from the given position to collect doc comment lines.
+--- @param source string The source code to search
+--- @param pos integer The position to search backwards from
+--- @return string The extracted doc comment, or nil if none found
 local function extract_doc_comment(source: string, pos: integer): string
   -- Find the start of the line containing pos
   local line_start = pos
@@ -86,7 +96,12 @@ local function extract_doc_comment(source: string, pos: integer): string
   return table.concat(doc_lines, "\n")
 end
 
--- Parse @param and @return annotations from doc comment
+--- Parse @param and @return annotations from doc comment.
+--- Extracts structured parameter and return information along with description.
+--- @param doc string The doc comment to parse
+--- @return {Param} List of parameters
+--- @return {Return} List of return values
+--- @return string The description text (non-annotation lines)
 local function parse_annotations(doc: string): {Param}, {Return}, string
   if not doc then
     return {}, {}, nil
@@ -122,7 +137,11 @@ local function parse_annotations(doc: string): {Param}, {Return}, string
   return params, returns, description
 end
 
--- Parse a .tl file and extract documentation
+--- Parse a .tl file and extract documentation.
+--- Extracts module docs, records, functions, and examples from source code.
+--- @param source string The source code to parse
+--- @param file_path string Path to the file being parsed
+--- @return ModuleDoc Complete documentation for the module
 local function parse(source: string, file_path: string): ModuleDoc
   local doc: ModuleDoc = {
     file = file_path,
@@ -379,7 +398,10 @@ local function parse(source: string, file_path: string): ModuleDoc
   return doc
 end
 
--- Render documentation as markdown
+--- Render documentation as markdown.
+--- Converts parsed documentation into formatted markdown with sections for types, functions, and examples.
+--- @param doc ModuleDoc The documentation to render
+--- @return string Formatted markdown documentation
 local function render(doc: ModuleDoc): string
   local lines: {string} = {}
 
@@ -500,7 +522,11 @@ local function render(doc: ModuleDoc): string
   return table.concat(lines, "\n")
 end
 
--- Main entry point: parse file and render markdown
+--- Main entry point: parse file and render markdown.
+--- Reads a Teal file, extracts documentation, and renders it as markdown.
+--- @param file_path string Path to the Teal file to document
+--- @return boolean Success status
+--- @return string Markdown documentation on success, error message on failure
 local function render_file(file_path: string): boolean, string
   local f, err = io.open(file_path, "r")
   if not f then

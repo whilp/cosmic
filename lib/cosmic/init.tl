@@ -3,13 +3,20 @@
 
 local cosmo = require("cosmo")
 
+--- Environment with standard output and error streams.
 local record Env
   stdout: FILE
   stderr: FILE
 end
 
+--- Main function signature for cosmic programs.
+--- Takes command-line arguments and environment, returns exit code and optional error message.
 local type MainFn = function(args: {string}, env: Env): number, string
 
+--- Run a main function and exit with its return code.
+--- Calls the provided function only if running as main script.
+--- Writes error message to stderr and exits with the returned code.
+--- @param fn MainFn The main function to execute
 local function main(fn: MainFn)
   if not cosmo.is_main() then return end
   local env: Env = {stderr = io.stderr, stdout = io.stdout}

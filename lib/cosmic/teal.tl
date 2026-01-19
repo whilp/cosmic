@@ -4,6 +4,7 @@
 
 local tl = require("tl")
 
+--- A compiler or type checker issue.
 local record Issue
   file: string
   line: integer
@@ -12,29 +13,35 @@ local record Issue
   severity: string  -- "error" or "warning"
 end
 
+--- Options for compiling Teal to Lua.
 local record CompileOpts
   include_dirs: {string}
   gen_target: string
   gen_compat: string
 end
 
+--- Options for type-checking Teal files.
 local record CheckOpts
   include_dirs: {string}
 end
 
+--- Result from compiling a Teal file.
 local record CompileResult
   ok: boolean
   code: string
   errors: {Issue}
 end
 
+--- Result from type-checking a Teal file.
 local record CheckResult
   ok: boolean
   warnings: {Issue}
   errors: {Issue}
 end
 
--- Default include directories for cosmic type definitions
+--- Get default include directories for cosmic type definitions.
+--- Returns paths to bundled and local type definition directories.
+--- @return {string} List of default include directory paths
 local function get_default_include_dirs(): {string}
   return {
     "/zip/.lua/types",       -- Bundled cosmic types (in binary)
@@ -43,6 +50,7 @@ local function get_default_include_dirs(): {string}
   }
 end
 
+--- Error from the Teal compiler.
 local record TlError
   msg: string
   filename: string
@@ -50,6 +58,7 @@ local record TlError
   x: integer
 end
 
+--- Result from Teal's process_string function.
 local record TlResult
   syntax_errors: {TlError}
   type_errors: {TlError}
@@ -57,14 +66,19 @@ local record TlResult
   ast: any
 end
 
+--- Internal result from processing a Teal file.
 local record ProcessResult
   tl_result: TlResult
   shebang: string
   error: Issue
 end
 
--- Process a Teal file: read, setup paths, run tl.process_string
--- Returns ProcessResult with tl_result on success, or error on failure
+--- Process a Teal file: read, setup paths, run tl.process_string.
+--- Returns ProcessResult with tl_result on success, or error on failure.
+--- @param input_path string Path to the Teal file to process
+--- @param include_dirs {string} Directories to search for type definitions
+--- @param lax boolean If true, use lax mode; if false, use strict mode
+--- @return ProcessResult Processing result with tl_result or error
 local function process_file(input_path: string, include_dirs: {string}, lax: boolean): ProcessResult
   local f, open_err = io.open(input_path, "r")
   if not f then
@@ -119,7 +133,11 @@ local function process_file(input_path: string, include_dirs: {string}, lax: boo
   return {tl_result = result as TlResult, shebang = shebang}
 end
 
--- Collect errors from tl result (syntax_errors and type_errors)
+--- Collect errors from tl result (syntax_errors and type_errors).
+--- Converts Teal's error format to cosmic's Issue format.
+--- @param result TlResult The result from tl.process_string
+--- @param input_path string Path to the source file for error reporting
+--- @return {Issue} List of issues converted from TlErrors
 local function collect_errors(result: TlResult, input_path: string): {Issue}
   local errors: {Issue} = {}
 
@@ -154,8 +172,11 @@ local function collect_errors(result: TlResult, input_path: string): {Issue}
   return errors
 end
 
--- Compile a Teal file to Lua code
--- Returns: CompileResult with ok, code (if successful), errors (if failed)
+--- Compile a Teal file to Lua code.
+--- Uses lax mode for permissive compilation. Preserves shebang if present.
+--- @param input_path string Path to the Teal file to compile
+--- @param opts CompileOpts Compilation options (include_dirs, gen_target, gen_compat)
+--- @return CompileResult Result with ok status, generated Lua code, and any errors
 local function compile(input_path: string, opts: CompileOpts): CompileResult
   opts = opts or {} as CompileOpts
 
@@ -182,8 +203,11 @@ local function compile(input_path: string, opts: CompileOpts): CompileResult
   return {ok = true, code = lua_code, errors = {}}
 end
 
--- Type-check a Teal file
--- Returns: CheckResult with ok, warnings, errors
+--- Type-check a Teal file.
+--- Uses strict mode for thorough type checking. Collects errors and warnings.
+--- @param input_path string Path to the Teal file to check
+--- @param opts CheckOpts Type-checking options (include_dirs)
+--- @return CheckResult Result with ok status, warnings, and errors
 local function check(input_path: string, opts: CheckOpts): CheckResult
   opts = opts or {} as CheckOpts
 
@@ -212,7 +236,10 @@ local function check(input_path: string, opts: CheckOpts): CheckResult
   return {ok = #errors == 0, warnings = warnings, errors = errors}
 end
 
--- Format issues for human-readable output
+--- Format issues for human-readable output.
+--- Creates formatted strings like "file.tl:10:5: error: message".
+--- @param issues {Issue} List of issues to format
+--- @return string Formatted issues, one per line
 local function format_issues(issues: {Issue}): string
   local lines: {string} = {}
   for _, issue in ipairs(issues) do
