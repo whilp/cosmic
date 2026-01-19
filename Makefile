@@ -193,14 +193,6 @@ clean:
 ## Bootstrap build environment
 bootstrap: $(bootstrap_files)
 
-all_checks := $(all_teals)
-
-## Run all linters (teal)
-check: $(o)/check-summary.txt
-
-$(o)/check-summary.txt: $(all_checks) | $(build_reporter)
-	@$(reporter) --dir $(o) $^ | tee $@
-
 .PHONY: build
 ## Build cosmic binary
 build: cosmic

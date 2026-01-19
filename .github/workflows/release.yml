@@ -20,9 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: make check test build
+      - name: make teal test build
         shell: bash -x {0}
-        run: bin/make -j check test build
+        run: bin/make -j teal test build
 
       - uses: actions/upload-artifact@v4
         with:
