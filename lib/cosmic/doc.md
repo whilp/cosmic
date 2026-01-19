@@ -22,3 +22,7 @@
 ## Functions
 
 ### name
+
+```teal
+function name()
+```

@@ -16,3 +16,7 @@
 ## Functions
 
 ### body
+
+```teal
+function body(everything until matching end)
+```
