@@ -1,6 +1,7 @@
 --- Go-style executable example testing.
 --- Parses Example_* functions from Teal files, runs them, and verifies output.
 
+--- A parsed example function with its expected output.
 local record Example
   name: string
   body: string
@@ -8,6 +9,7 @@ local record Example
   line: integer
 end
 
+--- Result from running a single example.
 local record ExampleResult
   name: string
   passed: boolean
@@ -16,13 +18,17 @@ local record ExampleResult
   error: string
 end
 
+--- Result from running all examples in a file.
 local record RunResult
   exit_code: integer
   results: {ExampleResult}
   error: string
 end
 
--- Parse a .tl file and extract Example_* functions with their expected output
+--- Parse a .tl file and extract Example_* functions with their expected output.
+--- Finds all local functions named Example_* and extracts their code and -- Output: comments.
+--- @param source string The source code to parse
+--- @return {Example} List of parsed examples
 local function parse_examples(source: string): {Example}
   local examples: {Example} = {}
 
@@ -170,7 +176,11 @@ local function parse_examples(source: string): {Example}
   return examples
 end
 
--- Run a single example and capture its output
+--- Run a single example and capture its output.
+--- Executes the example code and compares actual output with expected output.
+--- @param example Example The example to run
+--- @param file_path string Path to the source file (for context)
+--- @return ExampleResult Result with pass/fail status and output comparison
 local function run_example(example: Example, file_path: string): ExampleResult
   local result: ExampleResult = {
     name = example.name,
@@ -247,8 +257,10 @@ require("tl").loader()
   return result
 end
 
--- Run all examples in a file
--- Returns exit code (0=pass, 1=fail) and results
+--- Run all examples in a file.
+--- Parses and executes all Example_* functions, returning aggregated results.
+--- @param file_path string Path to the Teal file containing examples
+--- @return RunResult Result with exit code (0=pass, 1=fail, 2=skip), results, and errors
 local function run(file_path: string): RunResult
   local f, err = io.open(file_path, "r")
   if not f then
@@ -291,7 +303,11 @@ local function run(file_path: string): RunResult
   }
 end
 
--- Format results for human-readable output
+--- Format results for human-readable output.
+--- Creates formatted test output showing PASS/FAIL/SKIP with expected vs actual output.
+--- @param file_path string Path to the file that was tested
+--- @param run_result RunResult Results from running examples
+--- @return string Formatted output for display
 local function format_results(file_path: string, run_result: RunResult): string
   local lines: {string} = {}
 
