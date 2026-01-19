@@ -34,7 +34,6 @@ end
 test_require_cosmic_walk()
 
 local function test_require_cosmic_help()
-  -- help module prints on load, but should still return a table
   local help = require("cosmic.help")
   assert(help ~= nil, "help should not be nil")
   assert(help.modules ~= nil, "help.modules should not be nil")
