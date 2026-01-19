@@ -124,7 +124,7 @@ local function main(version_file: string, platform: string, output: string): boo
   -- remove old symlink/file if exists, create relative symlink
   -- output is o/<module>/.fetched -> o/fetched/<module>/<ver>-<sha>/
   unix.unlink(output)
-  local fetch_o_basename = fetch_o:match("([^/]+)$")
+  local fetch_o_basename = path.basename(fetch_o)
   local rel_path = "../" .. fetch_o_basename .. "/" .. module_name .. "/" .. version_sha
   if not unix.symlink(rel_path, output) then
     return nil, "failed to symlink: " .. rel_path .. " -> " .. output

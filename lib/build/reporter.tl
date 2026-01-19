@@ -56,20 +56,12 @@ local function format_summary(checker_name: string, results: CategorizedResults)
 end
 
 local function format_failures(results: {CheckResult}): string
-  local has_failures = false
-  for _, result in ipairs(results) do
-    if result.status == "fail" then
-      has_failures = true
-      break
-    end
-  end
-  if not has_failures then
-    return nil
-  end
-
   local lines: {string} = {"", "FAILURES:"}
+  local found = false
+
   for _, result in ipairs(results) do
     if result.status == "fail" then
+      found = true
       table.insert(lines, "")
       if result.checker then
         table.insert(lines, string.format("--- %s (%s) ---", result.name, result.checker))
@@ -79,7 +71,6 @@ local function format_failures(results: {CheckResult}): string
       if result.message and result.message ~= "" then
         table.insert(lines, result.message)
       end
-      -- read full output files for failures
       if result.file then
         local base = result.file:gsub("%.got$", "")
         local out = cosmo.Slurp(base .. ".out") or ""
@@ -97,7 +88,8 @@ local function format_failures(results: {CheckResult}): string
       end
     end
   end
-  return table.concat(lines, "\n")
+
+  return found and table.concat(lines, "\n") or nil
 end
 
 local function main(...: string): integer, string

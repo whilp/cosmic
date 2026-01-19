@@ -156,6 +156,24 @@ local function install_files(source_dir: string, dest_dir: string, strip_prefix:
   return move_contents(src, dest_dir)
 end
 
+local type ExtractFn = function(string, string, number): boolean, string
+
+local function extract_and_install(
+  extract_fn: ExtractFn,
+  archive: string,
+  stage_dir: string,
+  strip: number,
+  strip_prefix: string
+): boolean, string
+  local temp_dir = unix.mkdtemp(path.join(path.dirname(stage_dir), ".stage_XXXXXX"))
+  local ok, err = extract_fn(archive, temp_dir, strip)
+  if ok then
+    ok, err = install_files(temp_dir, stage_dir, strip_prefix)
+  end
+  unix.rmrf(temp_dir)
+  return ok, err
+end
+
 local function apply_install(stage_dir: string, install: {string:string}): boolean, string
   for src, dst in pairs(install) do
     local src_path = path.join(stage_dir, src)
@@ -257,19 +275,9 @@ local function main(version_file: string, platform: string, input: string, outpu
 
   local ok: boolean
   if format == "zip" then
-    local temp_dir = unix.mkdtemp(path.join(path.dirname(stage_dir), ".stage_XXXXXX"))
-    ok, err = extract_zip(archive, temp_dir, strip)
-    if ok then
-      ok, err = install_files(temp_dir, stage_dir, spec.strip_prefix)
-    end
-    unix.rmrf(temp_dir)
+    ok, err = extract_and_install(extract_zip, archive, stage_dir, strip, spec.strip_prefix)
   elseif format == "tar.gz" then
-    local temp_dir = unix.mkdtemp(path.join(path.dirname(stage_dir), ".stage_XXXXXX"))
-    ok, err = extract_targz(archive, temp_dir, strip)
-    if ok then
-      ok, err = install_files(temp_dir, stage_dir, spec.strip_prefix)
-    end
-    unix.rmrf(temp_dir)
+    ok, err = extract_and_install(extract_targz, archive, stage_dir, strip, spec.strip_prefix)
   elseif format == "binary" then
     ok, err = copy_binary(archive, stage_dir, module_name)
   elseif format == "gz" then
@@ -304,7 +312,7 @@ local function main(version_file: string, platform: string, input: string, outpu
   -- output is o/<module>/.staged, staged is o/staged/<module>/<ver>-<sha>
   unix.rmrf(output)
   unix.makedirs(output_dir)
-  local stage_o_basename = stage_o:match("([^/]+)$")
+  local stage_o_basename = path.basename(stage_o)
   local rel_path = "../" .. stage_o_basename .. "/" .. module_name .. "/" .. version_sha
   if not unix.symlink(rel_path, output) then
     return nil, "failed to symlink: " .. rel_path .. " -> " .. output

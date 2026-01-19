@@ -27,9 +27,7 @@ local record Result
 end
 
 local record Opts
-  method: string
   headers: {string:string}
-  body: string
   maxresponse: number
   max_attempts: number
   max_delay: number
