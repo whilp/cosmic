@@ -85,6 +85,15 @@ local function compile(input_path: string, opts: CompileOpts): CompileResult
   local input = f:read("*a")
   f:close()
 
+  -- Extract shebang if present (to preserve it in output)
+  local shebang: string = nil
+  if input:sub(1, 2) == "#!" then
+    local newline_pos = input:find("\n")
+    if newline_pos then
+      shebang = input:sub(1, newline_pos)
+    end
+  end
+
   -- Set up include directories for type definitions
   local include_dirs = opts.include_dirs or get_default_include_dirs()
 
@@ -163,6 +172,11 @@ local function compile(input_path: string, opts: CompileOpts): CompileResult
     gen_compat = opts.gen_compat or "off",
   }
   local lua_code = tl.generate(result.ast, gen_opts)
+
+  -- Prepend shebang if source had one
+  if shebang then
+    lua_code = shebang .. lua_code
+  end
 
   return {
     ok = true,
