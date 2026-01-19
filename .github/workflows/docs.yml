@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  SOURCE_SHA: ${{ github.sha }}
+
 jobs:
   generate-docs:
     runs-on: ubuntu-latest
@@ -17,13 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build cosmic binary
+      - name: Build and publish documentation
         shell: bash -x {0}
-        run: bin/make -j
-
-      - name: Generate and publish documentation
-        shell: bash -x {0}
-        run: |
-          DOCS_DIR=$(mktemp -d)
-          bin/make -j doc-export DOCS_DEST="$DOCS_DIR"
-          bin/make doc-publish SOURCE_SHA="${{ github.sha }}" DOCS_DIR="$DOCS_DIR"
+        run: bin/make -j doc-publish
