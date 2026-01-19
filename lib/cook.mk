@@ -1,16 +1,8 @@
 modules += lib
-lib_lua_modules :=
-lib_dirs :=
-lib_libs :=
-lib_tests :=
+lib_dirs := o/lib
 
 # type declaration files for teal compilation
 types_files := $(wildcard lib/types/*.d.tl lib/types/*/*.d.tl lib/types/*/*/*.d.tl)
-
-# standalone lib files (use _tl_files mechanism)
-lib_dirs += o/lib
-lib_tl_files :=
-lib_libs :=
 
 # copy .lua files to o/lib/
 o/lib/%.lua: lib/%.lua
@@ -24,6 +16,3 @@ o/teal/lib/%.lua: lib/%.tl $(types_files) | $(bootstrap_files)
 
 include lib/build/cook.mk
 include lib/cosmic/cook.mk
-
-# After includes: derive lib_libs from lib module _tl_files
-lib_libs += $(patsubst %.tl,$(o)/%.lua,$(foreach m,$(lib_lua_modules),$($(m)_tl_files)))
