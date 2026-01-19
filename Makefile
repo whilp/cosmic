@@ -203,15 +203,21 @@ $(o)/%.tl.example.got: %.tl $(cosmic_bin) | $(bootstrap_files)
 	@set +e; $(cosmic_bin) --example $< > $(basename $@).out 2> $(basename $@).err; echo $$? > $@
 
 # Documentation generation - render .tl files as markdown
-all_docs := $(patsubst %.tl,$(o)/%.md,$(all_example_srcs))
+all_docs := $(patsubst %.tl,$(o)/docs/%.md,$(all_example_srcs))
 
-.PHONY: doc
+.PHONY: docs
 ## Generate documentation from source
-doc: $(all_docs)
+docs: $(all_docs)
 
-$(o)/%.md: %.tl $(cosmic_bin) | $(bootstrap_files)
+$(o)/docs/%.md: %.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@$(cosmic_bin) --doc $< > $@
+
+.PHONY: doc-publish
+## Publish docs to git branch (SOURCE_SHA required, uses $(o)/docs)
+doc-publish: $(all_docs) $(docs_publish) | $(bootstrap_cosmic)
+	@test -n "$(SOURCE_SHA)" || { echo "SOURCE_SHA required"; exit 1; }
+	@$(bootstrap_cosmic) -- $(docs_publish) $(SOURCE_SHA) $(o)/docs $(or $(DOCS_BRANCH),docs)
 
 ci_stages := teal test build
 

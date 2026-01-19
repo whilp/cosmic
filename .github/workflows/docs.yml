@@ -1,0 +1,25 @@
+name: Generate Documentation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_SHA: ${{ github.sha }}
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Build and publish documentation
+        shell: bash -x {0}
+        run: bin/make -j doc-publish
