@@ -1,5 +1,5 @@
--- cosmic.example: Go-style executable example testing
--- Parses Example_* functions from .tl files, runs them, and checks output
+--- Go-style executable example testing.
+--- Parses Example_* functions from Teal files, runs them, and verifies output.
 
 local record Example
   name: string

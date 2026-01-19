@@ -1,6 +1,8 @@
--- cosmic.spawn: process spawning utilities
+--- Process spawning utilities.
+--- Spawn external processes with control over stdin, stdout, and stderr.
 local unix = require("cosmo.unix")
 
+--- Pipe for reading/writing process I/O.
 local record Pipe
   fd: number
   write: function(self: Pipe, data: string): number
@@ -8,6 +10,7 @@ local record Pipe
   close: function(self: Pipe)
 end
 
+--- Handle for a spawned process.
 local record SpawnHandle
   pid: number
   stdin: Pipe
@@ -17,6 +20,7 @@ local record SpawnHandle
   read: function(self: SpawnHandle, size?: number): boolean | string, string, number
 end
 
+--- Options for spawning a process.
 local record SpawnOpts
   stdin: string | number
   stdout: number

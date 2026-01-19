@@ -1,5 +1,5 @@
--- cosmic: cosmopolitan lua utilities
--- require individual modules via require("cosmic.spawn"), require("cosmic.walk"), etc.
+--- Cosmopolitan Lua utilities.
+--- Main entry point and utilities for cosmic modules.
 
 local cosmo = require("cosmo")
 

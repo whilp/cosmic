@@ -1,5 +1,5 @@
--- cosmic.teal: Teal compilation and type-checking for cosmic-lua
--- Provides --compile and --check functionality
+--- Teal compilation and type-checking.
+--- Provides --compile and --check functionality for cosmic-lua.
 
 local tl = require("tl")
 

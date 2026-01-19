@@ -1,23 +1,10 @@
--- cosmic.fetch: structured wrapper for cosmo.Fetch
---
--- Solves the problem of accidentally discarding error messages when using:
---   local status, _, body = cosmo.Fetch(url, opts)
---
--- Usage:
---   local fetch = require("cosmic.fetch")
---   local result = fetch.Fetch(url, opts)
---   if not result.ok then
---     return nil, result.error
---   end
---   -- use result.status, result.headers, result.body
---
--- With retry:
---   local result = fetch.Fetch(url, {max_attempts = 4})
---   local result = fetch.Fetch(url, {should_retry = function(r) return r.status >= 500 end})
+--- Structured HTTP fetch with optional retry.
+--- Wraps cosmo.Fetch with structured results to prevent accidentally discarding errors.
 
 local cosmo = require("cosmo")
 local unix = require("cosmo.unix")
 
+--- Result from a fetch operation.
 local record Result
   ok: boolean
   status: number
@@ -53,9 +40,10 @@ local function do_fetch(url: string, opts?: Opts): Result
   }
 end
 
--- Fetch wraps cosmo.Fetch with structured results and optional retry.
--- Set max_attempts > 1 for retry with exponential backoff.
--- Set should_retry to control which results trigger retry.
+--- Fetch a URL and return structured result.
+--- @param url string URL to fetch
+--- @param opts Opts optional fetch options (retry, headers, etc.)
+--- @return Result fetch result with ok, status, headers, body, or error
 local function Fetch(url: string, opts?: Opts): Result
   local max_attempts = (opts and opts.max_attempts) or 1
   local max_delay = (opts and opts.max_delay) or 30

@@ -1,11 +1,110 @@
 -- docs-publish: publish generated docs to a git branch
 local cosmo = require("cosmo")
 local unix = require("cosmo.unix")
+local path = require("cosmo.path")
 local spawn = require("cosmic.spawn")
 
 local record DirHandle
   read: function(DirHandle): string
   close: function(DirHandle)
+end
+
+local record DocInfo
+  path: string
+  name: string
+  description: string
+end
+
+-- Scan a directory recursively for .md files
+local function scan_docs(docs_dir: string): {DocInfo}
+  local docs: {DocInfo} = {}
+
+  local function scan(dir: string)
+    local handle = unix.opendir(dir) as DirHandle
+    if not handle then return end
+
+    while true do
+      local name = handle:read()
+      if not name then break end
+      if name ~= "." and name ~= ".." then
+        local full_path = path.join(dir, name)
+        local stat = unix.stat(full_path)
+        if stat then
+          if unix.S_ISDIR(stat:mode()) then
+            scan(full_path)
+          elseif name:match("%.md$") and name ~= "README.md" then
+            -- Read first paragraph after the header for description
+            local content = cosmo.Slurp(full_path)
+            local description = ""
+            if content then
+              -- Extract description: skip header line, take next non-empty paragraph
+              local after_header = content:match("^#[^\n]*\n+(.*)") or ""
+              local first_para = after_header:match("^([^\n]+)")
+              if first_para and not first_para:match("^#") then
+                description = first_para
+              end
+            end
+
+            -- Get relative path from docs_dir
+            local rel_path = full_path:sub(#docs_dir + 2)
+            local mod_name = name:gsub("%.md$", "")
+
+            table.insert(docs, {
+              path = rel_path,
+              name = mod_name,
+              description = description,
+            })
+          end
+        end
+      end
+    end
+    handle:close()
+  end
+
+  scan(docs_dir)
+
+  -- Sort by path for consistent output
+  table.sort(docs, function(a: DocInfo, b: DocInfo): boolean
+    return a.path < b.path
+  end)
+
+  return docs
+end
+
+-- Generate README.md content with links to docs
+local function make_readme(docs_dir: string): string
+  local docs = scan_docs(docs_dir)
+
+  local lines: {string} = {
+    "# Generated Documentation",
+    "",
+    "This branch contains auto-generated documentation from the cosmic-lua source code.",
+    "",
+    "## Documentation",
+    "",
+    "| Module | Description |",
+    "|--------|-------------|",
+  }
+
+  for _, doc in ipairs(docs) do
+    local link = "[" .. doc.name .. "](" .. doc.path .. ")"
+    table.insert(lines, "| " .. link .. " | " .. doc.description .. " |")
+  end
+
+  table.insert(lines, "")
+  table.insert(lines, "---")
+  table.insert(lines, "")
+  table.insert(lines, "Documentation is generated from Teal source files using `cosmic --doc`.")
+  table.insert(lines, "")
+  table.insert(lines, "To regenerate locally:")
+  table.insert(lines, "```bash")
+  table.insert(lines, "make docs")
+  table.insert(lines, "```")
+  table.insert(lines, "")
+  table.insert(lines, "*This branch is automatically updated by GitHub Actions. Do not edit manually.*")
+  table.insert(lines, "")
+
+  return table.concat(lines, "\n")
 end
 
 local function run(argv: {string}): boolean, string
@@ -72,27 +171,9 @@ local function main(source_sha: string, docs_dir: string, branch: string): boole
   unix.rmrf(temp_dir)
   if not ok then return nil, err end
 
-  -- write readme
-  local readme = io.open("README.md", "w")
-  if readme then
-    readme:write([[# Generated Documentation
-
-This branch contains auto-generated documentation from the cosmic-lua source code.
-
-## Contents
-
-Documentation is generated from Teal source files using `cosmic --doc`.
-
-To regenerate locally:
-```bash
-make doc
-```
-
----
-*This branch is automatically updated by GitHub Actions. Do not edit manually.*
-]])
-    readme:close()
-  end
+  -- write readme with doc table
+  local readme_content = make_readme(".")
+  cosmo.Barf("README.md", readme_content)
 
   -- stage all changes
   ok, err = run({"git", "add", "-A"})
@@ -116,6 +197,14 @@ make doc
   return true
 end
 
+local record PublishModule
+  make_readme: function(docs_dir: string): string
+end
+
+local M: PublishModule = {
+  make_readme = make_readme,
+}
+
 if cosmo.is_main() then
   local ok, err = main(arg[1], arg[2], arg[3])
   if not ok then
@@ -123,3 +212,5 @@ if cosmo.is_main() then
     os.exit(1)
   end
 end
+
+return M

@@ -216,4 +216,40 @@ end
 end
 test_example_title()
 
+-- Test that actual library files have proper documentation
+-- These tests verify that our source files have doc comments
+local function test_embed_has_module_doc()
+  local ok, md = doc.render_file("lib/cosmic/embed.tl")
+  assert(ok, "should read embed.tl")
+  -- Module should have a description after the header
+  assert(md:find("# embed\n\n[^#]"), "embed.tl should have module description")
+end
+test_embed_has_module_doc()
+
+local function test_embed_has_type_descriptions()
+  local ok, md = doc.render_file("lib/cosmic/embed.tl")
+  assert(ok, "should read embed.tl")
+  -- EmbedResult should have a description, not just a bare header
+  assert(md:find("### EmbedResult\n\n[^#]"), "EmbedResult should have description")
+end
+test_embed_has_type_descriptions()
+
+local function test_spawn_has_type_descriptions()
+  local ok, md = doc.render_file("lib/cosmic/spawn.tl")
+  assert(ok, "should read spawn.tl")
+  -- SpawnHandle should have a description
+  assert(md:find("### SpawnHandle\n\n[^#]"), "SpawnHandle should have description")
+end
+test_spawn_has_type_descriptions()
+
+local function test_fetch_has_module_description()
+  local ok, md = doc.render_file("lib/cosmic/fetch.tl")
+  assert(ok, "should read fetch.tl")
+  -- Module should have a description after the header
+  assert(md:find("# fetch\n\n[^#]"), "fetch.tl should have module description")
+  -- Should describe what it does
+  assert(md:find("HTTP fetch"), "should describe HTTP fetching")
+end
+test_fetch_has_module_description()
+
 print("All doc tests passed!")
