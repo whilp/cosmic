@@ -43,9 +43,8 @@ local function move_contents(source_dir: string, dest_dir: string): boolean, str
     if name ~= "." and name ~= ".." then
       local src = path.join(source_dir, name)
       local dst = path.join(dest_dir, name)
-      local ok, err = unix.rename(src, dst)
-      if not ok then
-        return nil, "failed to move " .. src .. " to " .. dst .. ": " .. tostring(err)
+      if not unix.rename(src, dst) then
+        return nil, "failed to move " .. src .. " to " .. dst
       end
     end
   end
@@ -72,7 +71,7 @@ local function strip_components(source_dir: string, dest_dir: string, strip: num
       end
     end
     if #entries ~= 1 then
-      return nil, string.format("strip %d: expected 1 entry at level, found %d", strip, #entries)
+      return nil, string.format("strip %d: expected 1 entry at level, found %d", strip as integer, #entries)
     end
     current = path.join(current, entries[1])
   end
@@ -162,9 +161,8 @@ local function apply_install(stage_dir: string, install: {string:string}): boole
     local src_path = path.join(stage_dir, src)
     local dst_path = path.join(stage_dir, dst)
     unix.makedirs(path.dirname(dst_path))
-    local ok, err = unix.rename(src_path, dst_path)
-    if not ok then
-      return nil, string.format("install %s -> %s: %s", src, dst, tostring(err))
+    if not unix.rename(src_path, dst_path) then
+      return nil, string.format("install %s -> %s failed", src, dst)
     end
   end
   return true
@@ -183,9 +181,8 @@ local function apply_links(stage_dir: string, links: {string:string}): boolean, 
     local link_path = path.join(stage_dir, link)
     unix.makedirs(path.dirname(link_path))
     unix.rmrf(link_path)
-    local ok, err = unix.symlink(target, link_path)
-    if not ok then
-      return nil, string.format("link %s -> %s: %s", link, target, tostring(err))
+    if not unix.symlink(target, link_path) then
+      return nil, string.format("link %s -> %s failed", link, target)
     end
   end
   return true
@@ -309,9 +306,8 @@ local function main(version_file: string, platform: string, input: string, outpu
   unix.makedirs(output_dir)
   local stage_o_basename = stage_o:match("([^/]+)$")
   local rel_path = "../" .. stage_o_basename .. "/" .. module_name .. "/" .. version_sha
-  local link_ok, link_err = unix.symlink(rel_path, output)
-  if not link_ok then
-    return nil, "failed to symlink: " .. tostring(link_err)
+  if not unix.symlink(rel_path, output) then
+    return nil, "failed to symlink: " .. rel_path .. " -> " .. output
   end
 
   return true

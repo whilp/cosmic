@@ -42,26 +42,6 @@ local function get_default_include_dirs(): {string}
   }
 end
 
--- Convert tl errors to Issue records
-local function convert_errors(errs: {{string, integer, integer, string}}, file: string, severity: string): {Issue}
-  local issues: {Issue} = {}
-  if not errs then
-    return issues
-  end
-  for _, e in ipairs(errs) do
-    if e.msg or e[4] then
-      table.insert(issues, {
-        file = e.filename or file,
-        line = (e.y or e[2] or 0) as integer,
-        column = (e.x or e[3] or 0) as integer,
-        message = e.msg or e[4] or "unknown error",
-        severity = severity,
-      })
-    end
-  end
-  return issues
-end
-
 -- Compile a Teal file to Lua code
 -- Returns: CompileResult with ok, code (if successful), errors (if failed)
 local function compile(input_path: string, opts: CompileOpts): CompileResult
@@ -135,8 +115,8 @@ local function compile(input_path: string, opts: CompileOpts): CompileResult
       if e.msg then
         table.insert(errors, {
           file = e.filename or input_path,
-          line = (e.y or 0) as integer,
-          column = (e.x or 0) as integer,
+          line = e.y or 0,
+          column = e.x or 0,
           message = e.msg,
           severity = "error",
         })
@@ -149,8 +129,8 @@ local function compile(input_path: string, opts: CompileOpts): CompileResult
       if e.msg then
         table.insert(errors, {
           file = e.filename or input_path,
-          line = (e.y or 0) as integer,
-          column = (e.x or 0) as integer,
+          line = e.y or 0,
+          column = e.x or 0,
           message = e.msg,
           severity = "error",
         })
@@ -167,7 +147,7 @@ local function compile(input_path: string, opts: CompileOpts): CompileResult
   end
 
   -- Generate Lua code from the validated AST
-  local gen_opts = {
+  local gen_opts: {string:any} = {
     gen_target = opts.gen_target or "5.4",
     gen_compat = opts.gen_compat or "off",
   }
@@ -250,8 +230,8 @@ local function check(input_path: string, opts: CheckOpts): CheckResult
       if w.msg then
         table.insert(warnings, {
           file = w.filename or input_path,
-          line = (w.y or 0) as integer,
-          column = (w.x or 0) as integer,
+          line = w.y or 0,
+          column = w.x or 0,
           message = w.msg,
           severity = "warning",
         })
@@ -264,8 +244,8 @@ local function check(input_path: string, opts: CheckOpts): CheckResult
       if e.msg then
         table.insert(errors, {
           file = e.filename or input_path,
-          line = (e.y or 0) as integer,
-          column = (e.x or 0) as integer,
+          line = e.y or 0,
+          column = e.x or 0,
           message = e.msg,
           severity = "error",
         })
@@ -278,8 +258,8 @@ local function check(input_path: string, opts: CheckOpts): CheckResult
       if e.msg then
         table.insert(errors, {
           file = e.filename or input_path,
-          line = (e.y or 0) as integer,
-          column = (e.x or 0) as integer,
+          line = e.y or 0,
+          column = e.x or 0,
           message = e.msg,
           severity = "error",
         })
@@ -313,12 +293,6 @@ local record TealModule
   check: function(input_path: string, opts?: CheckOpts): CheckResult
   format_issues: function(issues: {Issue}): string
   get_default_include_dirs: function(): {string}
-
-  Issue: type
-  CompileOpts: type
-  CheckOpts: type
-  CompileResult: type
-  CheckResult: type
 end
 
 local M: TealModule = {

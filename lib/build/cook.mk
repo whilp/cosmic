@@ -5,26 +5,23 @@ build_lua_srcs := $(wildcard lib/build/*.lua)
 build_srcs := $(build_lua_srcs)
 build_fetch := $(o)/bin/build-fetch.lua
 build_stage := $(o)/bin/build-stage.lua
-build_check_update := $(o)/bin/check-update.lua
 build_reporter := $(o)/bin/reporter.lua
 build_help := $(o)/bin/make-help.lua
-build_files := $(build_fetch) $(build_stage) $(build_check_update) $(build_reporter) $(build_help)
+build_files := $(build_fetch) $(build_stage) $(build_reporter) $(build_help)
 build_tests := $(wildcard lib/build/test_*.tl)
 
 .PRECIOUS: $(build_files)
 
 # Build scripts use cosmic's bundled teal (no tl_staged dependency)
 # This breaks the circular dependency: build scripts -> fetch -> tl_staged -> build scripts
-$(build_files): $(o)/bin/%.lua: lib/build/%.tl lib/cosmic/tl-gen.lua | $(bootstrap_files)
+$(build_files): $(o)/bin/%.lua: lib/build/%.tl | $(bootstrap_files)
 	@mkdir -p $(@D)
-	@$(bootstrap_cosmic) lib/cosmic/tl-gen.lua -- $< -o $@
-	@{ echo '#!/usr/bin/env lua'; cat $@; } > $@.tmp && mv $@.tmp $@
+	@$(bootstrap_cosmic) --compile $< > $@
 	@chmod +x $@
 reporter := $(bootstrap_cosmic) -- $(build_reporter)
-update_runner := $(bootstrap_cosmic) -- $(build_check_update)
 
-# test_reporter needs cosmic binary and checker module
-$(o)/lib/build/test_reporter.tl.test.got: $$(cosmic_bin) $$(checker_files)
+# test_reporter needs cosmic binary
+$(o)/lib/build/test_reporter.tl.test.got: $$(cosmic_bin)
 
 # make-help snapshot: generate actual help output
 $(o)/lib/build/make-help.snap: Makefile $(build_help) | $(bootstrap_cosmic)

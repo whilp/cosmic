@@ -1,6 +1,8 @@
 -- cosmic-lua dispatcher
 -- entry point for cosmic binary that handles special args and dispatches to features
 
+global warn: function(...: any)
+
 require("tl").loader()
 
 local getopt = require("cosmo.getopt")
@@ -121,7 +123,7 @@ local function parse_args(): Opts
     cosmic_args = arg
   end
 
-  local parser = getopt.new(cosmic_args, shortopts, longopts)
+  local parser = getopt.new(cosmic_args, shortopts, longopts as {{string, string}})
 
   -- Iterate through all options
   while true do

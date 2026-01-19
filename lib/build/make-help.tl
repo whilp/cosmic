@@ -96,8 +96,8 @@ local function format_help(items: {Item}, options?: FormatOptions): string
   table.insert(output, "Targets:")
 
   for _, item in ipairs(targets) do
-    local padding = string.rep(" ", math.max(0, width - #item.name))
-    table.insert(output, "  " .. item.name .. padding .. item.description)
+    local pad_len = math.max(0, width - #item.name) as integer
+    table.insert(output, "  " .. item.name .. string.rep(" ", pad_len) .. item.description)
   end
 
   -- Add options section if we have any
@@ -105,8 +105,8 @@ local function format_help(items: {Item}, options?: FormatOptions): string
     table.insert(output, "")
     table.insert(output, "Options:")
     for _, item in ipairs(vars) do
-      local padding = string.rep(" ", math.max(0, width - #item.name))
-      table.insert(output, "  " .. item.name .. padding .. item.description)
+      local pad_len = math.max(0, width - #item.name) as integer
+      table.insert(output, "  " .. item.name .. string.rep(" ", pad_len) .. item.description)
     end
   end
 
@@ -117,9 +117,9 @@ end
 local function main(args: {string}): number, string
   local makefile = args[1] or "Makefile"
 
-  local content, err = cosmo.Slurp(makefile)
+  local content = cosmo.Slurp(makefile)
   if not content then
-    return 1, err or ("Failed to read " .. makefile)
+    return 1, "Failed to read " .. makefile
   end
 
   local targets = parse_makefile(content)
@@ -132,7 +132,7 @@ if cosmo.is_main() then
   if err then
     io.stderr:write(err .. "\n")
   end
-  os.exit(exit_code)
+  os.exit(exit_code as integer)
 end
 
 -- Extract all .PHONY targets from makefile content
