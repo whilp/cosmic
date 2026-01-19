@@ -6,24 +6,14 @@ local cosmo = require("cosmo")
 
 local tmpdir = os.getenv("TEST_TMPDIR") or "/tmp"
 
-local function write_result_file(filepath: string, status: string, message: string, stdout: string, stderr: string)
-  local content = status
-  if message then
-    content = content .. ": " .. message
-  end
-  content = content .. "\n\n## stdout\n"
-  if stdout then
-    content = content .. stdout
-  end
-  content = content .. "\n\n## stderr\n"
-  if stderr then
-    content = content .. stderr
-  end
-  local dir = path.dirname(filepath)
+local function write_test_result(base: string, exit_code: integer, stdout: string, stderr: string)
+  local dir = path.dirname(base)
   if dir and dir ~= "" and dir ~= "." then
     unix.makedirs(dir)
   end
-  cosmo.Barf(filepath, content)
+  cosmo.Barf(base .. ".got", tostring(exit_code) .. "\n")
+  cosmo.Barf(base .. ".out", stdout or "")
+  cosmo.Barf(base .. ".err", stderr or "")
 end
 
 local record SpawnHandle
@@ -56,13 +46,13 @@ local function test_single_checker_mode()
   local test_dir = path.join(tmpdir, "single-checker")
   unix.makedirs(test_dir)
 
-  write_result_file(path.join(test_dir, "test1.test.ok"), "pass", nil, "", "")
-  write_result_file(path.join(test_dir, "test2.test.ok"), "fail", "assertion failed", "", "expected true")
+  write_test_result(path.join(test_dir, "test1.test"), 0, "all good\n", "")
+  write_test_result(path.join(test_dir, "test2.test"), 1, "", "assertion failed\n")
 
   local code, stdout, stderr = run_reporter(
     "--dir", test_dir,
-    path.join(test_dir, "test1.test.ok"),
-    path.join(test_dir, "test2.test.ok")
+    path.join(test_dir, "test1.test.got"),
+    path.join(test_dir, "test2.test.got")
   )
 
   assert(code == 1, "expected exit code 1 for failures, got: " .. tostring(code))
@@ -73,60 +63,36 @@ local function test_single_checker_mode()
 end
 test_single_checker_mode()
 
--- test multi-checker mode (check)
-local function test_multi_checker_mode()
-  local test_dir = path.join(tmpdir, "multi-checker")
+-- test all passing
+local function test_all_passing()
+  local test_dir = path.join(tmpdir, "all-pass")
   unix.makedirs(test_dir)
 
-  write_result_file(path.join(test_dir, "file1.ast-grep.ok"), "pass", nil, "", "")
-  write_result_file(path.join(test_dir, "file1.luacheck.ok"), "pass", nil, "", "")
-  write_result_file(path.join(test_dir, "file2.teal.ok"), "fail", "type error", "", "Expected string")
+  write_test_result(path.join(test_dir, "test1.test"), 0, "ok\n", "")
+  write_test_result(path.join(test_dir, "test2.test"), 0, "ok\n", "")
 
   local code, stdout, stderr = run_reporter(
     "--dir", test_dir,
-    path.join(test_dir, "file1.ast-grep.ok"),
-    path.join(test_dir, "file1.luacheck.ok"),
-    path.join(test_dir, "file2.teal.ok")
+    path.join(test_dir, "test1.test.got"),
+    path.join(test_dir, "test2.test.got")
   )
 
-  assert(code == 1, "expected exit code 1 for failures")
-  assert(stdout:match("ast%-grep: 1 checks"), "expected ast-grep summary")
-  assert(stdout:match("luacheck: 1 checks"), "expected luacheck summary")
-  assert(stdout:match("teal: 1 checks"), "expected teal summary")
-  assert(stdout:match("total: 3 checks: 2 passed, 1 failed"), "expected total summary")
+  assert(code == 0, "expected exit code 0 for all passing")
+  assert(stdout:match("test: 2 checks: 2 passed, 0 failed"), "expected test summary")
+  assert(not stdout:match("FAILURES"), "expected no failures section")
 end
-test_multi_checker_mode()
-
--- test update mode custom summary
-local function test_update_mode_summary()
-  local test_dir = path.join(tmpdir, "update-mode")
-  unix.makedirs(test_dir)
-
-  write_result_file(path.join(test_dir, "v1.update.ok"), "pass", "1.0.0", "", "")
-  write_result_file(path.join(test_dir, "v2.update.ok"), "skip", "1.0.0 -> 2.0.0", "", "")
-
-  local code, stdout, stderr = run_reporter(
-    "--dir", test_dir,
-    path.join(test_dir, "v1.update.ok"),
-    path.join(test_dir, "v2.update.ok")
-  )
-
-  assert(code == 0, "expected exit code 0 for updates")
-  assert(stdout:match("update: 2 checks: 1 passed, 0 failed, 1 skipped"), "expected update summary format")
-  assert(stdout:match("SKIP.*1%.0%.0 %-> 2%.0%.0"), "expected skip with version info")
-end
-test_update_mode_summary()
+test_all_passing()
 
 -- test directory stripping
 local function test_directory_stripping()
   local test_dir = path.join(tmpdir, "dir-strip")
   unix.makedirs(test_dir)
 
-  write_result_file(path.join(test_dir, "subdir", "file.test.ok"), "pass", nil, "", "")
+  write_test_result(path.join(test_dir, "subdir", "file.test"), 0, "ok\n", "")
 
   local code, stdout, stderr = run_reporter(
     "--dir", test_dir,
-    path.join(test_dir, "subdir", "file.test.ok")
+    path.join(test_dir, "subdir", "file.test.got")
   )
 
   assert(code == 0, "expected exit code 0")
@@ -135,31 +101,9 @@ local function test_directory_stripping()
 end
 test_directory_stripping()
 
--- test skip and ignore statuses
-local function test_skip_and_ignore()
-  local test_dir = path.join(tmpdir, "skip-ignore")
-  unix.makedirs(test_dir)
-
-  write_result_file(path.join(test_dir, "t1.test.ok"), "pass", nil, "", "")
-  write_result_file(path.join(test_dir, "t2.test.ok"), "skip", "not implemented", "", "")
-  write_result_file(path.join(test_dir, "t3.test.ok"), "ignore", "unsupported", "", "")
-
-  local code, stdout, stderr = run_reporter(
-    "--dir", test_dir,
-    path.join(test_dir, "t1.test.ok"),
-    path.join(test_dir, "t2.test.ok"),
-    path.join(test_dir, "t3.test.ok")
-  )
-
-  assert(code == 0, "expected exit code 0")
-  assert(stdout:match("test: 3 checks: 1 passed, 0 failed, 1 skipped, 1 ignored"), "expected correct counts")
-  assert(not stdout:match("FAILURES"), "expected no failures section")
-end
-test_skip_and_ignore()
-
 -- test missing --dir flag
 local function test_missing_dir_flag()
-  local code, stdout, stderr = run_reporter("file.test.ok")
+  local code, stdout, stderr = run_reporter("file.test.got")
 
   assert(code == 1, "expected exit code 1")
   assert(stderr:match("%-%-dir is required"), "expected error about --dir")
@@ -175,19 +119,20 @@ local function test_no_files()
 end
 test_no_files()
 
--- test auto-detection of checker types
-local function test_checker_auto_detection()
-  local test_dir = path.join(tmpdir, "auto-detect")
+-- test message extraction from stderr on failure
+local function test_message_from_stderr()
+  local test_dir = path.join(tmpdir, "msg-stderr")
   unix.makedirs(test_dir)
 
-  write_result_file(path.join(test_dir, "file.custom-checker.ok"), "pass", nil, "", "")
+  write_test_result(path.join(test_dir, "fail.test"), 1, "", "first line error\nsecond line\n")
 
   local code, stdout, stderr = run_reporter(
     "--dir", test_dir,
-    path.join(test_dir, "file.custom-checker.ok")
+    path.join(test_dir, "fail.test.got")
   )
 
-  assert(code == 0, "expected exit code 0")
-  assert(stdout:match("custom%-checker: 1 checks"), "expected custom checker to be auto-detected")
+  assert(code == 1, "expected exit code 1")
+  assert(stdout:match("first line error"), "expected first line of stderr as message")
 end
-test_checker_auto_detection()
+test_message_from_stderr()
+

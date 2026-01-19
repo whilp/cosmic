@@ -20,14 +20,7 @@ local record CategorizedResults
 end
 
 local function extract_checker(filename: string): string
-  -- Handle .test.got files (new format)
-  local checker = filename:match("%.([^%.]+)%.got$")
-  if checker then
-    return checker
-  end
-  -- Handle .ok files (old format for snapshots, etc)
-  checker = filename:match("%.([^%.]+)%.ok$")
-  return checker
+  return filename:match("%.([^%.]+)%.got$")
 end
 
 local function main(...: string): number, string
@@ -85,9 +78,7 @@ local function main(...: string): number, string
 
   for _, checker in ipairs(checkers) do
     local results: CategorizedResults = {pass = {}, fail = {}, skip = {}, ignore = {}}
-    -- Handle both .got and .ok suffixes
-    local strip_suffix_got = "%." .. checker:gsub("%-", "%%-") .. "%.got$"
-    local strip_suffix_ok = "%." .. checker:gsub("%-", "%%-") .. "%.ok$"
+    local strip_suffix = "%." .. checker:gsub("%-", "%%-") .. "%.got$"
     local show_checker = checker ~= "update"
 
     local result_files = checker_files[checker]
@@ -96,52 +87,32 @@ local function main(...: string): number, string
     for _, file in ipairs(result_files) do
       local content = cosmo.Slurp(file)
       if content then
-        local result: CheckResult
+        local exit_code = tonumber(content:match("^(%d+)"))
+        local status_str = exit_code == 0 and "pass" or "fail"
+        local base = file:gsub("%.got$", "")
+        local out_content = cosmo.Slurp(base .. ".out") or ""
+        local err_content = cosmo.Slurp(base .. ".err") or ""
 
-        -- Handle new test format (.test.got files)
-        if file:match("%.test%.got$") then
-          local exit_code = tonumber(content:match("^(%d+)"))
-          local status_str = exit_code == 0 and "pass" or "fail"
-          local base = file:gsub("%.got$", "")
-          local out_content = cosmo.Slurp(base .. ".out") or ""
-          local err_content = cosmo.Slurp(base .. ".err") or ""
-
-          -- Extract last line from stdout as success message, or first line from stderr as error
-          local message = ""
-          if exit_code ~= 0 and err_content ~= "" then
-            message = err_content:match("^([^\n]+)") or ""
-          elseif out_content ~= "" then
-            message = out_content:match("([^\n]+)$") or ""
-          end
-
-          result = {
-            status = status_str,
-            message = message,
-            name = name_transform(common.strip_prefix(file):gsub(strip_suffix_got, "")),
-            file = file,
-            checker = show_checker and checker or nil,
-          }
-        else
-          -- Handle old format (.ok files from snapshots, etc)
-          local parsed = common.parse_result(content)
-          if parsed then
-            result = {
-              status = parsed.status,
-              message = parsed.message,
-              name = name_transform(common.strip_prefix(file):gsub(strip_suffix_ok, "")),
-              file = file,
-              checker = show_checker and checker or nil,
-            }
-          end
+        local message = ""
+        if exit_code ~= 0 and err_content ~= "" then
+          message = err_content:match("^([^\n]+)") or ""
+        elseif out_content ~= "" then
+          message = out_content:match("([^\n]+)\n*$") or ""
         end
 
-        if result then
-          local status_list = (results as {string:{CheckResult}})[result.status]
-          if status_list then
-            table.insert(status_list, result)
-          end
-          table.insert(all_results, result)
+        local result: CheckResult = {
+          status = status_str,
+          message = message,
+          name = name_transform(common.strip_prefix(file):gsub(strip_suffix, "")),
+          file = file,
+          checker = show_checker and checker or nil,
+        }
+
+        local status_list = (results as {string:{CheckResult}})[result.status]
+        if status_list then
+          table.insert(status_list, result)
         end
+        table.insert(all_results, result)
       end
     end
 

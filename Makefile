@@ -149,15 +149,13 @@ all_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_tests)))
 all_release_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_release_test) $($(x)_release_tests)))
 all_declared_tests := $(all_tests) $(all_release_tests)
 all_tested := $(patsubst %,o/%.test.got,$(all_tests))
-all_snaps := $(call filter-only,$(foreach x,$(modules),$($(x)_snaps)))
-all_snapped := $(patsubst %,$(o)/%.snap.test.ok,$(all_snaps))
 all_buns := $(call filter-only,$(foreach x,$(modules),$($(x)_buns)))
 all_bunned := $(patsubst %,$(o)/%.bun.ok,$(all_buns))
 
 ## Run all tests (incremental)
 test: $(o)/test-summary.txt
 
-$(o)/test-summary.txt: $(all_tested) $(all_snapped) | $(build_reporter)
+$(o)/test-summary.txt: $(all_tested) | $(build_reporter)
 	@$(reporter) --dir $(o) $^ | tee $@
 
 export TEST_O := $(o)
@@ -176,12 +174,6 @@ $(o)/%.tl.test.got: $(o)/%.lua $(test_files) $(checker_files) $(o)/bin/cosmic | 
 	@mkdir -p $(@D)
 	@chmod +x $<
 	-@PATH=$(CURDIR)/o/bin:$$PATH TEST_DIR=$(TEST_DIR) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
-
-# Snapshot test pattern: compare expected vs actual
-$(o)/%.snap.test.ok: .EXTRA_PREREQS = $(build_snap)
-$(o)/%.snap.test.ok: %.snap $(o)/%.snap | $(bootstrap_cosmic)
-	@mkdir -p $(@D)
-	@$(bootstrap_cosmic) $(build_snap) $< $(word 2,$^) > $@
 
 # expand test deps: M's tests depend on own _files/_tl_files plus deps' _dir/_files/_tl_lua
 # derive compiled .lua from _tl_files (first pass: compute all _tl_lua)
