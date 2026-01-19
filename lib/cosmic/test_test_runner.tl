@@ -70,27 +70,6 @@ print("End test")
 end
 test_syntax_error()
 
--- Test --test with test arguments
-local function test_with_arguments()
-  local test_file = path.join(tmpdir, "args_test.lua")
-  cosmo.Barf(test_file, [[
-print("arg_count=" .. #arg)
-for i, v in ipairs(arg) do
-  print("arg[" .. i .. "]=" .. tostring(v))
-end
-assert(arg[1] == "foo", "arg[1] should be foo")
-assert(arg[2] == "bar", "arg[2] should be bar")
-]])
-
-  local ok, out = spawn({cosmic, "--test", test_file, "foo", "bar"}):read()
-  assert(ok, "cosmic --test should succeed with arguments")
-  assert((out as string):find("pass"), "test should pass")
-  assert((out as string):find("arg_count=2"), "test should receive 2 arguments")
-  assert((out as string):find("arg%[1%]=foo"), "arg[1] should be foo")
-  assert((out as string):find("arg%[2%]=bar"), "arg[2] should be bar")
-end
-test_with_arguments()
-
 -- Test --test output format (status, stdout, stderr sections)
 local function test_output_format()
   local test_file = path.join(tmpdir, "output_format.lua")
@@ -119,22 +98,6 @@ local function test_empty_file()
   assert((out as string):find("pass"), "empty test should pass")
 end
 test_empty_file()
-
--- Test --test with test that uses global arg table
-local function test_global_arg_table()
-  local test_file = path.join(tmpdir, "global_arg.lua")
-  cosmo.Barf(test_file, [[
-assert(type(arg) == "table", "arg should be a table")
-print("arg[0]=" .. tostring(arg[0]))
-assert(arg[0], "arg[0] should be set")
-]])
-
-  local ok, out = spawn({cosmic, "--test", test_file}):read()
-  assert(ok, "cosmic --test should succeed")
-  assert((out as string):find("pass"), "test should pass")
-  assert((out as string):find("arg%[0%]="), "arg[0] should be displayed")
-end
-test_global_arg_table()
 
 -- Test --test with multiple assertions
 local function test_multiple_assertions()

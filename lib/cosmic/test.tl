@@ -69,14 +69,7 @@ end
 
 -- Run a test file
 -- Returns: TestResult with ok, status, message, stdout, stderr
-local function run(input_path: string, args: {integer: string}): TestResult
-  args = args or {}
-
-  -- Set up arg table for test (arg[0] = test file, arg[1..N] = remaining args)
-  local test_args = args as {string}
-  test_args[0] = input_path
-  _G.arg = test_args
-
+local function run(input_path: string): TestResult
   -- Load the test file
   local chunk, err = loadfile(input_path)
   if not chunk then

@@ -53,57 +53,6 @@ print("Should not reach here")
 end
 test_shebang_failing()
 
--- Test shebang with --test and arguments
-local function test_shebang_with_arguments()
-  local test_file = path.join(tmpdir, "shebang_args.lua")
-  cosmo.Barf(test_file, string.format([[#!/usr/bin/env -S %s --test
-
-print("Arguments received:")
-for i, v in ipairs(arg) do
-  print("arg[" .. i .. "]=" .. v)
-end
-
-assert(arg[1] == "alpha", "first arg should be alpha")
-assert(arg[2] == "beta", "second arg should be beta")
-]], cosmic))
-
-  -- Make file executable
-  unix.chmod(test_file, tonumber("755", 8))
-
-  -- Execute with arguments
-  local ok, out = spawn({test_file, "alpha", "beta"}):read()
-  assert(ok, "shebang test should succeed with arguments")
-  assert((out as string):find("pass"), "test should pass")
-  assert((out as string):find("arg%[1%]=alpha"), "first argument should be passed")
-  assert((out as string):find("arg%[2%]=beta"), "second argument should be passed")
-end
-test_shebang_with_arguments()
-
--- Test shebang with --test and special characters in arguments
-local function test_shebang_special_args()
-  local test_file = path.join(tmpdir, "shebang_special.lua")
-  cosmo.Barf(test_file, string.format([[#!/usr/bin/env -S %s --test
-
-for i, v in ipairs(arg) do
-  print("arg[" .. i .. "]=" .. v)
-end
-
-assert(arg[1] == "--flag", "should handle --flag")
-assert(arg[2] == "value with spaces", "should handle spaces")
-]], cosmic))
-
-  -- Make file executable
-  unix.chmod(test_file, tonumber("755", 8))
-
-  -- Execute with special arguments
-  local ok, out = spawn({test_file, "--flag", "value with spaces"}):read()
-  assert(ok, "shebang test should handle special arguments")
-  assert((out as string):find("pass"), "test should pass")
-  assert((out as string):find("arg%[1%]=%-%-flag"), "should handle --flag")
-  assert((out as string):find("arg%[2%]=value with spaces"), "should preserve spaces")
-end
-test_shebang_special_args()
-
 -- Test shebang with test that prints to stderr
 local function test_shebang_stderr()
   local test_file = path.join(tmpdir, "shebang_stderr.lua")
