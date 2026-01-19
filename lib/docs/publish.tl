@@ -68,8 +68,16 @@ local function main(source_sha: string, docs_dir: string, branch: string): boole
     return nil, "usage: docs-publish <source_sha> <docs_dir> <branch>"
   end
 
+  -- copy docs to temp before switching branches (checkout will clear working dir)
+  local temp_dir = unix.mkdtemp("/tmp/docs-publish-XXXXXX")
+  local ok, err = copy_recursive(docs_dir, temp_dir)
+  if not ok then
+    unix.rmrf(temp_dir)
+    return nil, err
+  end
+
   -- configure git
-  local ok, err = run({"git", "config", "user.name", "github-actions[bot]"})
+  ok, err = run({"git", "config", "user.name", "github-actions[bot]"})
   if not ok then return nil, err end
   ok, err = run({"git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"})
   if not ok then return nil, err end
@@ -102,8 +110,9 @@ local function main(source_sha: string, docs_dir: string, branch: string): boole
     end
   end
 
-  -- copy docs
-  ok, err = copy_recursive(docs_dir, ".")
+  -- copy docs from temp
+  ok, err = copy_recursive(temp_dir, ".")
+  unix.rmrf(temp_dir)
   if not ok then return nil, err end
 
   -- write readme
