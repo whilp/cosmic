@@ -15,7 +15,6 @@ local record Opts
   interactive: boolean
   version: boolean
   warnings: boolean
-  skill: string
   help: boolean | string
   script: string
   script_args: {integer:string}
@@ -32,7 +31,6 @@ local function parse_args(): Opts
     interactive = false,
     version = false,
     warnings = false,
-    skill = nil,
     help = nil,
     script = nil,
     script_args = {},
@@ -41,10 +39,9 @@ local function parse_args(): Opts
     error = nil,
   }
 
-  local shortopts = "e:l:ivEWh::s:"
+  local shortopts = "e:l:ivEWh::"
   local longopts: {LongOpt} = {
     { "help", "optional", "h" },
-    { "skill", "required", "s" },
     { "compile", "required", nil },
     { "check", "required", nil },  -- Takes first file, remaining files via remaining()
   }
@@ -73,9 +70,7 @@ local function parse_args(): Opts
   end
 
   -- Options that consume all remaining arguments (no script after them)
-  local long_greedy: {string:boolean} = {
-    ["skill"] = true,
-  }
+  local long_greedy: {string:boolean} = {}
 
   -- Find first non-option argument (script name) to know where to stop parsing
   local script_idx: integer = nil
@@ -158,11 +153,6 @@ local function parse_args(): Opts
         opts.help = true
       end
       return opts
-    elseif opt == "s" or opt == "skill" then
-      opts.skill = optarg
-      -- Remaining args go to skill
-      opts.script_args = parser:remaining() as {integer:string}
-      return opts
     elseif opt == "compile" then
       opts.compile = optarg
       return opts
@@ -194,11 +184,6 @@ end
 local function run_repl()
   io.write(_VERSION .. "  Copyright (C) 1994-2024 Lua.org, PUC-Rio\n")
   debug.debug()
-end
-
--- Skill module interface
-local record SkillModule
-  main: function(): integer, string
 end
 
 local function main(): integer, string
@@ -243,7 +228,6 @@ local function main(): integer, string
       io.write("Usage: cosmic-lua [options] [script [args]]\n")
       io.write("\n")
       io.write("Cosmic options:\n")
-      io.write("  --skill <name> [args]    run a skill module\n")
       io.write("  --compile <file.tl>      compile Teal file to Lua (stdout)\n")
       io.write("  --check <file.tl>        type-check a Teal file\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
@@ -256,21 +240,6 @@ local function main(): integer, string
       io.write("  -E                       ignore environment variables\n")
       io.write("  -W                       turn warnings into errors\n")
       return 0
-    end
-  end
-
-  -- Handle --skill
-  if opts.skill then
-    _G.arg = opts.script_args as {string}
-    local skill = require("skill." .. opts.skill) as SkillModule
-    if skill.main then
-      local code, msg = skill.main()
-      if msg then
-        io.stderr:write(msg .. "\n")
-      end
-      return code or 0
-    else
-      return 1, "error: skill '" .. opts.skill .. "' has no main function"
     end
   end
 
