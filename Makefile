@@ -45,9 +45,6 @@ help: $(build_files) | $(bootstrap_cosmic)
 ## Filter targets by pattern (make test only='teal')
 filter-only = $(if $(only),$(foreach f,$1,$(if $(findstring $(only),$(f)),$(f))),$1)
 
-# srcs are copied to o/
-all_files := $(call filter-only,$(foreach x,$(modules),$(addprefix $(o)/$(x)/,$($(x)_srcs))))
-
 cp := cp -p
 
 $(o)/%: %
@@ -72,24 +69,15 @@ $(o)/bin/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files) | $(tl_staged
 	@mkdir -p $(@D)
 	@$(bootstrap_cosmic) --compile $< > $@
 
-# files are produced in o/
-all_files += $(call filter-only,$(foreach x,$(modules),$($(x)_files)))
-
 # tl files: modules declare _tl_files, derive compiled .lua outputs
 all_tl_files := $(call filter-only,$(foreach x,$(modules),$($(x)_tl_files)))
 all_tl_lua := $(patsubst %.tl,$(o)/%.lua,$(all_tl_files))
-all_files += $(all_tl_lua)
 
 # define *_staged, *_dir for versioned modules (must be before dep expansion)
 # modules can override *_dir for post-processing (e.g., nvim bundles plugins)
 $(foreach m,$(modules),$(if $($(m)_version),\
   $(eval $(m)_staged := $(o)/$(m)/.staged)\
   $(if $($(m)_dir),,$(eval $(m)_dir := $(o)/$(m)/.staged))))
-
-# define *_zip for tool modules (excludes cosmos, tl, bootstrap infrastructure)
-zip_excluded := cosmos tl bootstrap
-$(foreach m,$(filter-out $(zip_excluded),$(modules)),$(if $($(m)_version),\
-  $(eval $(m)_zip := $(o)/$(m)/.zip)))
 
 # default deps for regular modules (also excluded from file dep expansion)
 default_deps := bootstrap test
@@ -128,25 +116,8 @@ $(o)/%/.staged: .UNVEIL = rx:$(o)/bootstrap r:3p rwc:$(o) rx:/usr/bin
 $(o)/%/.staged: $(o)/%/.fetched $(build_files)
 	@$(build_stage) $$(readlink $(o)/$*/.versioned) $(platform) $< $@
 
-# tool zips: o/module/.zip contains versioned dir + symlinks (for home binary)
-# structure: .local/share/<tool>/<ver-sha>/* + symlinks at .local/share/<tool>/*
-$(o)/%/.zip: $(o)/%/.staged $$(cosmos_staged)
-	@rm -rf $(@D)/.zip-staging
-	@mkdir -p $(@D)/.zip-staging/.local/share/$*
-	@versioned_name=$$(basename $$(readlink -f $<)) && \
-		cp -r $$(readlink -f $<) $(@D)/.zip-staging/.local/share/$*/$$versioned_name && \
-		for item in $(@D)/.zip-staging/.local/share/$*/$$versioned_name/*; do \
-			ln -sf $$versioned_name/$$(basename $$item) $(@D)/.zip-staging/.local/share/$*/$$(basename $$item); \
-		done && \
-		cd $(@D)/.zip-staging && $(CURDIR)/$(cosmos_zip) -qry $(CURDIR)/$@ .
-	@rm -rf $(@D)/.zip-staging
-
 all_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_tests)))
-all_release_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_release_test) $($(x)_release_tests)))
-all_declared_tests := $(all_tests) $(all_release_tests)
-all_tested := $(patsubst %,o/%.test.got,$(all_tests))
-all_buns := $(call filter-only,$(foreach x,$(modules),$($(x)_buns)))
-all_bunned := $(patsubst %,$(o)/%.bun.ok,$(all_buns))
+all_tested := $(patsubst %,$(o)/%.test.got,$(all_tests))
 
 ## Run all tests (incremental)
 test: $(o)/test-summary.txt
@@ -158,9 +129,10 @@ export TEST_O := $(o)
 export TEST_PLATFORM := $(platform)
 export TEST_BIN := $(o)/bin
 export TEST_TMPDIR := $(TMP)
-# Build LUA_PATH from lib_dirs (populated by cook.mk includes)
-lib_dirs_lua_path := $(subst ; ,;,$(foreach d,$(lib_dirs),$(CURDIR)/$(d)/?.lua;$(CURDIR)/$(d)/?/init.lua;))
-export LUA_PATH := $(CURDIR)/o/bin/?.lua;$(CURDIR)/o/teal/lib/?.lua;$(CURDIR)/o/teal/lib/?/init.lua;$(CURDIR)/o/lib/?.lua;$(CURDIR)/o/lib/?/init.lua;$(lib_dirs_lua_path)$(CURDIR)/lib/?.lua;$(CURDIR)/lib/?/init.lua;;
+# LUA_PATH: aggregate _lua_dirs from modules
+space := $(subst ,, )
+lua_path_dirs := $(foreach m,$(modules),$($(m)_lua_dirs))
+export LUA_PATH := $(subst $(space),;,$(foreach d,$(lua_path_dirs),$(CURDIR)/$(d)/?.lua $(CURDIR)/$(d)/?/init.lua));;
 export NO_COLOR := 1
 
 # Test rule: execute test directly via shebang, capture exit code, stdout, stderr
@@ -169,7 +141,7 @@ $(o)/%.tl.test.got: .UNVEIL = rx:$(o)/bootstrap r:lib r:3p rwc:$(o) rwc:$(TMP) r
 $(o)/%.tl.test.got: $(o)/%.lua $(test_files) $(o)/bin/cosmic | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@chmod +x $<
-	-@PATH=$(CURDIR)/o/bin:$$PATH TEST_DIR=$(TEST_DIR) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
+	-@PATH=$(CURDIR)/$(o)/bin:$$PATH TEST_DIR=$(TEST_DIR) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
 
 # expand test deps: M's tests depend on own _files/_tl_files plus deps' _dir/_files/_tl_lua
 # derive compiled .lua from _tl_files (first pass: compute all _tl_lua)
@@ -201,18 +173,6 @@ all_checkable_files := $(addprefix $(o)/,$(all_source_files))
 ## Build all module files
 files: $(all_built_files)
 
-all_astgreps := $(patsubst %,%.ast-grep.ok,$(all_checkable_files))
-
-## Run ast-grep linter on all files
-astgrep: $(o)/astgrep-summary.txt
-
-$(o)/astgrep-summary.txt: $(all_astgreps) | $(build_reporter)
-	@$(reporter) --dir $(o) $^ | tee $@
-
-$(o)/%.ast-grep.ok: $(o)/% $(ast-grep_files) $(tl_staged) | $(bootstrap_files) $(ast-grep_staged)
-	@mkdir -p $(@D)
-	@ASTGREP_BIN=$(ast-grep_staged) $(astgrep_runner) $< > $@
-
 all_teals := $(patsubst %,%.teal.got,$(all_checkable_files))
 
 ## Run teal type checker on all files
@@ -225,12 +185,6 @@ $(o)/%.teal.got: $(o)/% $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	-@$(cosmic_bin) --check $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
 
-## Run bun syntax checker on .gs/.js files
-bun: $(o)/bun-summary.txt
-
-$(o)/bun-summary.txt: $(all_bunned) | $(build_reporter)
-	@$(reporter) --dir $(o) $^ | tee $@
-
 .PHONY: clean
 ## Remove all build artifacts
 clean:
@@ -240,35 +194,9 @@ clean:
 ## Bootstrap build environment
 bootstrap: $(bootstrap_files)
 
-all_checks := $(all_teals)
-
-## Run all linters (teal)
-check: $(o)/check-summary.txt
-
-$(o)/check-summary.txt: $(all_checks) | $(build_reporter)
-	@$(reporter) --dir $(o) $^ | tee $@
-
-## Verify all test files are declared in cook.mk
-.PHONY: check-test-coverage
-check-test-coverage: $(test_check_coverage) | $(bootstrap_files)
-	@$(coverage_checker) $(all_declared_tests)
-
 .PHONY: build
 ## Build cosmic binary
 build: cosmic
-
-.PHONY: release
-## Create release artifacts (CI only)
-release:
-	@mkdir -p release
-	@cp artifacts/cosmic-lua/cosmic release/cosmic-lua
-	@chmod +x release/cosmic-lua
-	@tag="$$(date -u +%Y-%m-%d)-$${GITHUB_SHA::7}"; \
-	(cd release && sha256sum cosmic-lua > SHA256SUMS && cat SHA256SUMS); \
-	gh release create "$$tag" \
-		$${PRERELEASE_FLAG} \
-		--title "$$tag" \
-		release/cosmic-lua release/SHA256SUMS
 
 ci_stages := teal test build
 

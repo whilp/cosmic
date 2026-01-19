@@ -1,4 +1,5 @@
 modules += cosmic
+cosmic_lua_dirs := $(o)/lib
 cosmic_lua_srcs := $(wildcard lib/cosmic/*.lua)
 cosmic_tl_srcs := $(wildcard lib/cosmic/*.tl)
 cosmic_srcs := $(cosmic_lua_srcs) $(cosmic_tl_srcs)
