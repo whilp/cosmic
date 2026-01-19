@@ -213,6 +213,12 @@ $(o)/%.md: %.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@$(cosmic_bin) --doc $< > $@
 
+.PHONY: doc-export
+## Export docs to DOCS_DEST (strips o/ prefix)
+doc-export: doc
+	@test -n "$(DOCS_DEST)" || { echo "DOCS_DEST required"; exit 1; }
+	@$(foreach f,$(all_docs),mkdir -p $(dir $(DOCS_DEST)/$(f:$(o)/%=%)) && cp $(f) $(DOCS_DEST)/$(f:$(o)/%=%);)
+
 ci_stages := teal test build
 
 .PHONY: ci

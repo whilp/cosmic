@@ -23,24 +23,16 @@ jobs:
 
       - name: Generate documentation
         shell: bash -x {0}
-        run: bin/make -j doc
+        run: |
+          TEMP_DOCS=$(mktemp -d)
+          bin/make -j doc-export DOCS_DEST="$TEMP_DOCS"
+          echo "TEMP_DOCS=$TEMP_DOCS" >> "$GITHUB_ENV"
 
       - name: Commit and push to docs branch
         run: |
           set -e
 
           SOURCE_SHA="${{ github.sha }}"
-
-          # Copy only .md files to temp location
-          TEMP_DOCS=$(mktemp -d)
-          if [ -d "o" ]; then
-            find o -name '*.md' -exec cp --parents {} "$TEMP_DOCS/" \;
-            echo "Copied .md files to $TEMP_DOCS"
-            find "$TEMP_DOCS" -type f
-          else
-            echo "No o/ directory found"
-            exit 1
-          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -57,7 +49,7 @@ jobs:
           git rm -rf . 2>/dev/null || true
           rm -rf ./*
 
-          # Copy docs from temp location, preserving structure
+          # Copy docs from export location
           cp -r "$TEMP_DOCS"/. .
           rm -rf "$TEMP_DOCS"
 
