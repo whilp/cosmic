@@ -59,6 +59,23 @@ local function make_pipe(fd: number): Pipe
   return pipe
 end
 
+--- Spawns a subprocess with the given command and arguments.
+---
+--- Resolves commands via PATH if not absolute. Creates pipes for
+--- stdin/stdout/stderr unless file descriptors are provided.
+---
+---@example
+--- local spawn = require("cosmic.spawn")
+--- local handle = spawn({"echo", "hello"})
+--- assert(handle ~= nil, "spawn should return a handle")
+---
+---@example
+--- -- Capture output from a command
+--- local spawn = require("cosmic.spawn")
+--- local handle = spawn({"echo", "test"})
+--- local ok, output = handle:read()
+--- assert(ok, "command should succeed")
+--- assert(output:match("test"), "output should contain 'test'")
 local function spawn(argv: {string}, opts?: SpawnOpts): SpawnHandle, string
   opts = opts or {}
 

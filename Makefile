@@ -148,6 +148,43 @@ $(foreach m,$(filter-out bootstrap,$(modules)),\
       $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): TEST_DEPS += $($(d)_dir)))\
     $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(d)_files) $($(d)_tl_lua))))
 
+# Doctest: extract and run examples from documentation
+all_tl_srcs := $(call filter-only,$(foreach x,$(modules),$($(x)_tl_srcs)))
+doctest_sources := $(filter-out $(all_tests),$(all_tl_srcs))
+doctest_extracted := $(patsubst %.tl,$(o)/%.doctest.extracted,$(doctest_sources))
+doctest_tests := $(patsubst %.extracted,%.test.lua,$(doctest_extracted))
+doctest_tested := $(patsubst %.test.lua,%.test.lua.test.got,$(doctest_tests))
+
+## Extract documentation examples from source files
+doctest-extract: $(doctest_extracted)
+
+## Run documentation examples as tests
+doctest: $(o)/doctest-summary.txt
+
+$(o)/%.doctest.extracted: %.tl $(build_doctest_extractor) | $(bootstrap_cosmic)
+	@mkdir -p $(@D)
+	@$(bootstrap_cosmic) -- $(build_doctest_extractor) $< $@ || (rm -f $@; exit 1)
+
+$(o)/%.doctest.test.lua: $(o)/%.doctest.extracted $(build_doctest_runner) | $(bootstrap_cosmic)
+	@mkdir -p $(@D)
+	@$(bootstrap_cosmic) -- $(build_doctest_runner) $< $@ || (rm -f $@; exit 1)
+
+# Doctest tests use same infrastructure as regular tests
+$(o)/%.doctest.test.lua.test.got: $(o)/%.doctest.test.lua $(o)/bin/cosmic
+	@mkdir -p $(@D)
+	@chmod +x $<
+	-@PATH=$(CURDIR)/$(o)/bin:$$PATH $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
+
+$(o)/doctest-summary.txt: $(doctest_tested) | $(build_reporter)
+	@$(reporter) --dir $(o) $^ | tee $@
+
+## Validate documentation coverage
+docs-validate: $(build_doctest_validator) $(all_tl_files) | $(bootstrap_cosmic)
+	@for f in $(call filter-only,$(cosmic_tl_files)); do \
+		echo "Validating $$f..."; \
+		$(bootstrap_cosmic) -- $(build_doctest_validator) $$f --threshold 80 || exit 1; \
+	done
+
 all_built_files := $(call filter-only,$(foreach x,$(modules),$($(x)_files)))
 all_built_files += $(all_tl_lua)
 all_source_files := $(call filter-only,$(foreach x,$(modules),$($(x)_tests)))

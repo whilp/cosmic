@@ -1,0 +1,20 @@
+#!/bin/sh
+# Convenience wrapper for the documentation validator
+
+# Find the cosmic binary
+if [ -n "$COSMIC" ]; then
+  cosmic="$COSMIC"
+elif [ -f "bin/cosmic" ]; then
+  cosmic="bin/cosmic"
+elif command -v cosmic >/dev/null 2>&1; then
+  cosmic="cosmic"
+else
+  echo "Error: cosmic binary not found" >&2
+  exit 1
+fi
+
+# Get the directory of this script
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+# Run the validator
+exec "$cosmic" "$script_dir/validator.lua" "$@"

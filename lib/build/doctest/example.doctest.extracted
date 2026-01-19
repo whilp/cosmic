@@ -1,0 +1,28 @@
+{
+  "source": "docs/examples/getting-started.md",
+  "examples": [
+    {
+      "title": "basic arithmetic",
+      "code": "local result = 2 + 2\nassert(result == 4, 'basic addition works')",
+      "line": 10
+    },
+    {
+      "title": "string manipulation",
+      "code": "local greeting = 'Hello, ' .. 'World!'\nassert(greeting == 'Hello, World!')",
+      "line": 20
+    },
+    {
+      "title": "table operations",
+      "setup": "local t = {a = 1, b = 2}",
+      "code": "t.c = 3\nassert(t.a == 1)\nassert(t.b == 2)\nassert(t.c == 3)",
+      "line": 30
+    },
+    {
+      "title": "using cosmic library",
+      "setup": "local cosmo = require('cosmo')",
+      "code": "local os_name = cosmo.GetHostOs()\nassert(type(os_name) == 'string')\nassert(#os_name > 0)",
+      "teardown": "-- no cleanup needed",
+      "line": 45
+    }
+  ]
+}

@@ -1,10 +1,14 @@
 modules += build
-build_lua_dirs := $(o)/lib/build
+build_lua_dirs := $(o)/lib/build $(o)/lib/build/doctest
 build_fetch := $(o)/lib/build/build-fetch.lua
 build_stage := $(o)/lib/build/build-stage.lua
 build_reporter := $(o)/lib/build/reporter.lua
 build_help := $(o)/lib/build/make-help.lua
-build_files := $(build_fetch) $(build_stage) $(build_reporter) $(build_help)
+build_doctest_example := $(o)/lib/build/doctest/example.lua
+build_doctest_extractor := $(o)/lib/build/doctest/extractor.lua
+build_doctest_runner := $(o)/lib/build/doctest/runner.lua
+build_doctest_validator := $(o)/lib/build/doctest/validator.lua
+build_files := $(build_fetch) $(build_stage) $(build_reporter) $(build_help) $(build_doctest_example) $(build_doctest_extractor) $(build_doctest_runner) $(build_doctest_validator)
 build_tests := $(wildcard lib/build/test_*.tl)
 
 reporter := $(bootstrap_cosmic) -- $(build_reporter)
