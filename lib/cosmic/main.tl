@@ -21,6 +21,7 @@ local record Opts
   script_args: {integer:string}
   compile: string          -- Input file for --compile (outputs to stdout)
   check: string            -- Input file for --check
+  error: string            -- Parse error message
 end
 
 -- Parse arguments using cosmo.getopt iterator API
@@ -37,6 +38,7 @@ local function parse_args(): Opts
     script_args = {},
     compile = nil,
     check = nil,
+    error = nil,
   }
 
   local shortopts = "e:l:ivEWh::s:"
@@ -135,8 +137,8 @@ local function parse_args(): Opts
 
     if opt == "?" then
       -- Unknown cosmic option
-      io.stderr:write("cosmic-lua: unknown option '" .. optarg .. "'\n")
-      os.exit(1)
+      opts.error = "cosmic-lua: unknown option '" .. optarg .. "'"
+      return opts
     elseif opt == "e" then
       opts.execute[#opts.execute + 1] = optarg
     elseif opt == "l" then
@@ -194,163 +196,174 @@ local function run_repl()
   debug.debug()
 end
 
-local opts = parse_args()
-
--- Handle -v
-if opts.version then
-  io.write(_VERSION .. "\n")
-  os.exit(0)
-end
-
--- Handle --help
-if opts.help then
-  if type(opts.help) == "string" then
-    -- Help for specific module
-    local ok, mod = pcall(require, opts.help as string)
-    if ok and type(mod) == "table" then
-      io.write("Module: " .. (opts.help as string) .. "\n")
-      local modtbl = mod as {string:string}
-      if modtbl._VERSION then
-        io.write("Version: " .. modtbl._VERSION .. "\n")
-      end
-      if modtbl._DESCRIPTION then
-        io.write("\n" .. modtbl._DESCRIPTION .. "\n")
-      end
-      if modtbl._USAGE then
-        io.write("\nUsage:\n" .. modtbl._USAGE .. "\n")
-      end
-      os.exit(0)
-    else
-      io.stderr:write("error: module '" .. (opts.help as string) .. "' not found\n")
-      os.exit(1)
-    end
-  else
-    -- General cosmic help
-    io.write("cosmic-lua: cosmopolitan lua with bundled libraries\n")
-    io.write("\n")
-    io.write("Usage: cosmic-lua [options] [script [args]]\n")
-    io.write("\n")
-    io.write("Cosmic options:\n")
-    io.write("  --skill <name> [args]    run a skill module\n")
-    io.write("  --compile <file.tl>      compile Teal file to Lua (stdout)\n")
-    io.write("  --check <file.tl>        type-check a Teal file\n")
-    io.write("  --help [module]          show help for cosmic or a module\n")
-    io.write("\n")
-    io.write("Standard lua options:\n")
-    io.write("  -e <stat>                execute string 'stat'\n")
-    io.write("  -l <name>                require library 'name'\n")
-    io.write("  -i                       enter interactive mode\n")
-    io.write("  -v                       show version information\n")
-    io.write("  -E                       ignore environment variables\n")
-    io.write("  -W                       turn warnings into errors\n")
-    os.exit(0)
-  end
-end
-
 -- Skill module interface
 local record SkillModule
   main: function(): integer, string
 end
 
--- Handle --skill
-if opts.skill then
-  _G.arg = opts.script_args as {string}
-  local skill = require("skill." .. opts.skill) as SkillModule
-  if skill.main then
-    local code, msg = skill.main()
-    if msg then
-      io.stderr:write(msg .. "\n")
+local function main(): integer, string
+  local opts = parse_args()
+
+  -- Handle parse errors
+  if opts.error then
+    return 1, opts.error
+  end
+
+  -- Handle -v
+  if opts.version then
+    io.write(_VERSION .. "\n")
+    return 0
+  end
+
+  -- Handle --help
+  if opts.help then
+    if type(opts.help) == "string" then
+      -- Help for specific module
+      local ok, mod = pcall(require, opts.help as string)
+      if ok and type(mod) == "table" then
+        io.write("Module: " .. (opts.help as string) .. "\n")
+        local modtbl = mod as {string:string}
+        if modtbl._VERSION then
+          io.write("Version: " .. modtbl._VERSION .. "\n")
+        end
+        if modtbl._DESCRIPTION then
+          io.write("\n" .. modtbl._DESCRIPTION .. "\n")
+        end
+        if modtbl._USAGE then
+          io.write("\nUsage:\n" .. modtbl._USAGE .. "\n")
+        end
+        return 0
+      else
+        return 1, "error: module '" .. (opts.help as string) .. "' not found"
+      end
+    else
+      -- General cosmic help
+      io.write("cosmic-lua: cosmopolitan lua with bundled libraries\n")
+      io.write("\n")
+      io.write("Usage: cosmic-lua [options] [script [args]]\n")
+      io.write("\n")
+      io.write("Cosmic options:\n")
+      io.write("  --skill <name> [args]    run a skill module\n")
+      io.write("  --compile <file.tl>      compile Teal file to Lua (stdout)\n")
+      io.write("  --check <file.tl>        type-check a Teal file\n")
+      io.write("  --help [module]          show help for cosmic or a module\n")
+      io.write("\n")
+      io.write("Standard lua options:\n")
+      io.write("  -e <stat>                execute string 'stat'\n")
+      io.write("  -l <name>                require library 'name'\n")
+      io.write("  -i                       enter interactive mode\n")
+      io.write("  -v                       show version information\n")
+      io.write("  -E                       ignore environment variables\n")
+      io.write("  -W                       turn warnings into errors\n")
+      return 0
     end
-    os.exit(code or 0)
-  else
-    io.stderr:write("error: skill '" .. opts.skill .. "' has no main function\n")
-    os.exit(1)
-  end
-end
-
--- Handle --compile
-if opts.compile then
-  local teal = require("cosmic.teal")
-  local result = teal.compile(opts.compile)
-  if result.ok then
-    io.write(result.code)
-    os.exit(0)
-  else
-    io.stderr:write(teal.format_issues(result.errors) .. "\n")
-    os.exit(1)
-  end
-end
-
--- Handle --check
-if opts.check then
-  local teal = require("cosmic.teal")
-  local result = teal.check(opts.check)
-
-  if #result.warnings > 0 then
-    io.stderr:write(teal.format_issues(result.warnings) .. "\n")
-  end
-  if #result.errors > 0 then
-    io.stderr:write(teal.format_issues(result.errors) .. "\n")
   end
 
-  if result.ok then
-    io.write("Type check passed\n")
-    os.exit(0)
-  else
-    os.exit(1)
+  -- Handle --skill
+  if opts.skill then
+    _G.arg = opts.script_args as {string}
+    local skill = require("skill." .. opts.skill) as SkillModule
+    if skill.main then
+      local code, msg = skill.main()
+      if msg then
+        io.stderr:write(msg .. "\n")
+      end
+      return code or 0
+    else
+      return 1, "error: skill '" .. opts.skill .. "' has no main function"
+    end
   end
-end
 
--- Handle -W warnings: convert warnings to errors
-if opts.warnings then
-  warn = function(...: string)
-    local msg = table.concat({...}, " ")
-    error("warning: " .. msg, 2)
+  -- Handle --compile
+  if opts.compile then
+    local teal = require("cosmic.teal")
+    local result = teal.compile(opts.compile)
+    if result.ok then
+      io.write(result.code)
+      return 0
+    else
+      io.stderr:write(teal.format_issues(result.errors) .. "\n")
+      return 1
+    end
   end
-end
 
--- Load libraries
-for _, name in ipairs(opts.load) do
-  require(name)
-end
+  -- Handle --check
+  if opts.check then
+    local teal = require("cosmic.teal")
+    local result = teal.check(opts.check)
 
--- Execute strings
-for _, code in ipairs(opts.execute) do
-  local chunk, err = load(code, "=(command line)")
-  if chunk then
-    chunk()
-  else
-    io.stderr:write("cosmic-lua: " .. (err or "error loading command") .. "\n")
-    os.exit(1)
+    if #result.warnings > 0 then
+      io.stderr:write(teal.format_issues(result.warnings) .. "\n")
+    end
+    if #result.errors > 0 then
+      io.stderr:write(teal.format_issues(result.errors) .. "\n")
+    end
+
+    if result.ok then
+      io.write("Type check passed\n")
+      return 0
+    else
+      return 1
+    end
   end
-end
 
--- Execute script file
-if opts.script then
-  _G.arg = opts.script_args as {string}
-  local chunk, err = loadfile(opts.script)
-  if not chunk then
-    io.stderr:write("cosmic-lua: " .. err .. "\n")
-    os.exit(1)
+  -- Handle -W warnings: convert warnings to errors
+  if opts.warnings then
+    warn = function(...: string)
+      local msg = table.concat({...}, " ")
+      error("warning: " .. msg, 2)
+    end
   end
-  -- Call chunk with script args as varargs (matching standard lua behavior)
-  -- Standard lua passes arg[1], arg[2], ... as varargs to the script
-  -- Note: table.unpack has a limit of ~250 args, but this is not a practical concern
-  local args: {string} = {}
-  for i = 1, #opts.script_args do
-    args[i] = opts.script_args[i]
+
+  -- Load libraries
+  for _, name in ipairs(opts.load) do
+    require(name)
   end
-  chunk(table.unpack(args))
-  os.exit(0)
+
+  -- Execute strings
+  for _, code in ipairs(opts.execute) do
+    local chunk, err = load(code, "=(command line)")
+    if chunk then
+      chunk()
+    else
+      return 1, "cosmic-lua: " .. (err or "error loading command")
+    end
+  end
+
+  -- Execute script file
+  if opts.script then
+    _G.arg = opts.script_args as {string}
+    local chunk, err = loadfile(opts.script)
+    if not chunk then
+      return 1, "cosmic-lua: " .. err
+    end
+    -- Call chunk with script args as varargs (matching standard lua behavior)
+    -- Standard lua passes arg[1], arg[2], ... as varargs to the script
+    -- Note: table.unpack has a limit of ~250 args, but this is not a practical concern
+    local args: {string} = {}
+    for i = 1, #opts.script_args do
+      args[i] = opts.script_args[i]
+    end
+    chunk(table.unpack(args))
+    return 0
+  end
+
+  -- Interactive mode or REPL
+  if opts.interactive or (#opts.execute == 0 and #opts.load == 0 and #arg == 0) then
+    run_repl()
+    return 0
+  end
+
+  -- If we have -e or -l but no script, exit normally
+  if #opts.execute > 0 or #opts.load > 0 then
+    return 0
+  end
+
+  return 0
 end
 
--- Interactive mode or REPL
-if opts.interactive or (#opts.execute == 0 and #opts.load == 0 and #arg == 0) then
-  run_repl()
-  os.exit(0)
+local code, msg = main()
+if msg then
+  io.stderr:write(msg .. "\n")
 end
-
--- If we have -e or -l but no script, exit normally
-if #opts.execute > 0 or #opts.load > 0 then
-  os.exit(0)
-end
+os.exit(code)
