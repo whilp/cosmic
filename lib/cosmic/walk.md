@@ -7,6 +7,12 @@
 
 ### Stat
 
+ File or directory metadata.
+
 ### DirHandle
 
+ Handle for reading directory entries.
+
 ### FileInfo
+
+ File information with Unix permissions.

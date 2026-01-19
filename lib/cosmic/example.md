@@ -7,9 +7,15 @@
 
 ### Example
 
+ A parsed example function with its expected output.
+
 ### ExampleResult
 
+ Result from running a single example.
+
 ### RunResult
+
+ Result from running all examples in a file.
 
 ### ExampleModule
 

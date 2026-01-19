@@ -7,4 +7,6 @@
 
 ### Env
 
+ Environment with standard output and error streams.
+
 ### cosmic
