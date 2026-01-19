@@ -124,4 +124,31 @@ print("read " .. #data .. " bytes")
 end
 test_compile_with_cosmic_types()
 
+-- Test shebang preservation
+local function test_compile_preserves_shebang()
+  local input = write_temp("shebang.tl", [[#!/usr/bin/env cosmic
+local x: number = 42
+print(x)
+]])
+
+  local ok, out = spawn({cosmic, "--compile", input}):read()
+  assert(ok, "cosmic --compile should succeed")
+  assert((out as string):sub(1, 21) == "#!/usr/bin/env cosmic", "shebang should be preserved at start of output")
+  assert((out as string):find("\nlocal x = 42"), "compiled Lua should follow shebang")
+end
+test_compile_preserves_shebang()
+
+-- Test file without shebang still works
+local function test_compile_no_shebang()
+  local input = write_temp("no_shebang.tl", [[local x: number = 42
+print(x)
+]])
+
+  local ok, out = spawn({cosmic, "--compile", input}):read()
+  assert(ok, "cosmic --compile should succeed")
+  assert((out as string):sub(1, 2) ~= "#!", "output should not have shebang if source didn't")
+  assert((out as string):find("local x = 42"), "output should contain compiled Lua")
+end
+test_compile_no_shebang()
+
 print("All compile tests passed!")
