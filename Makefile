@@ -56,9 +56,9 @@ $(o)/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files)
 	@mkdir -p $(@D)
 	@$(bootstrap_cosmic) --compile $< > $@
 
-# tl files: modules declare _tl_files, derive compiled .lua outputs
-all_tl_files := $(call filter-only,$(foreach x,$(modules),$($(x)_tl_files)))
-all_tl_lua := $(patsubst %.tl,$(o)/%.lua,$(all_tl_files))
+# tl files: modules declare _tl, derive compiled .lua outputs
+all_tl := $(call filter-only,$(foreach x,$(modules),$($(x)_tl)))
+all_lua := $(patsubst %.tl,$(o)/%.lua,$(all_tl))
 
 # define *_staged, *_dir for versioned modules (must be before dep expansion)
 # modules can override *_dir for post-processing (e.g., nvim bundles plugins)
@@ -130,14 +130,14 @@ $(o)/%.tl.test.got: $(o)/%.lua $(test_files) $(o)/bin/cosmic | $(bootstrap_files
 	@chmod +x $<
 	-@PATH=$(CURDIR)/$(o)/bin:$$PATH TEST_DIR=$(TEST_DIR) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
 
-# expand test deps: M's tests depend on own _files/_tl_files plus deps' _dir/_files/_tl_lua
-# derive compiled .lua from _tl_files (first pass: compute all _tl_lua)
+# expand test deps: M's tests depend on own _files/_tl plus deps' _dir/_files/_lua
+# derive compiled .lua from _tl (first pass: compute all _lua)
 $(foreach m,$(filter-out bootstrap,$(modules)),\
-  $(eval $(m)_tl_lua := $(patsubst %.tl,$(o)/%.lua,$($(m)_tl_files))))
+  $(if $($(m)_tl),$(eval $(m)_lua := $(patsubst %.tl,$(o)/%.lua,$($(m)_tl)))))
 # second pass: set up test dependencies
 $(foreach m,$(filter-out bootstrap,$(modules)),\
-  $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(m)_files) $($(m)_tl_lua))\
-  $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): TEST_DEPS += $($(m)_files) $($(m)_tl_lua))\
+  $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(m)_files) $($(m)_lua))\
+  $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): TEST_DEPS += $($(m)_files) $($(m)_lua))\
   $(if $($(m)_dir),\
     $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(m)_dir))\
     $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): TEST_DEPS += $($(m)_dir))\
@@ -146,14 +146,14 @@ $(foreach m,$(filter-out bootstrap,$(modules)),\
     $(if $($(d)_dir),\
       $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(d)_dir))\
       $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): TEST_DEPS += $($(d)_dir)))\
-    $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(d)_files) $($(d)_tl_lua))))
+    $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(d)_files) $($(d)_lua))))
 
 all_built_files := $(call filter-only,$(foreach x,$(modules),$($(x)_files)))
-all_built_files += $(all_tl_lua)
+all_built_files += $(all_lua)
 all_source_files := $(call filter-only,$(foreach x,$(modules),$($(x)_tests)))
 all_source_files += $(call filter-only,$(filter-out ,$(foreach x,$(modules),$($(x)_version))))
 all_source_files += $(call filter-only,$(foreach x,$(modules),$($(x)_srcs)))
-all_source_files += $(all_tl_files)
+all_source_files += $(all_tl)
 all_checkable_files := $(addprefix $(o)/,$(all_source_files))
 
 .PHONY: files
@@ -186,8 +186,7 @@ bootstrap: $(bootstrap_files)
 build: cosmic
 
 # Example testing - run Example_* functions in .tl files (exclude test files)
-# Note: filter-out can't use two % patterns, so we filter by checking for /test_ in path
-all_example_srcs := $(call filter-only,$(foreach f,$(foreach m,$(modules),$($(m)_tl_srcs)),$(if $(findstring /test_,$(f)),,$(f))))
+all_example_srcs := $(call filter-only,$(foreach m,$(modules),$(filter-out $($(m)_tests),$($(m)_tl))))
 all_examples := $(patsubst %.tl,$(o)/%.tl.example.got,$(all_example_srcs))
 
 .PHONY: example
