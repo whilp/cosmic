@@ -22,6 +22,8 @@ local record Opts
   script_args: {integer:string}
   compile: string          -- Input file for --compile (outputs to stdout)
   check: string            -- Input file for --check
+  embed: {string}          -- Files to embed via --embed
+  output: string           -- Output file for --embed (defaults to "cosmic")
   example: string          -- Input file for --example (run examples)
   doc: string              -- Input file for --doc (generate docs)
   error: string            -- Parse error message
@@ -40,6 +42,8 @@ local function parse_args(): Opts
     script_args = {},
     compile = nil,
     check = nil,
+    embed = {},
+    output = nil,
     example = nil,
     doc = nil,
     error = nil,
@@ -50,6 +54,8 @@ local function parse_args(): Opts
     { "help", "optional", "h" },
     { "compile", "required", nil },
     { "check", "required", nil },  -- Takes first file, remaining files via remaining()
+    { "embed", "required", nil },
+    { "output", "required", nil },
     { "example", "required", nil },
     { "doc", "required", nil },
   }
@@ -167,6 +173,10 @@ local function parse_args(): Opts
     elseif opt == "check" then
       opts.check = optarg
       return opts
+    elseif opt == "embed" then
+      opts.embed[#opts.embed + 1] = optarg
+    elseif opt == "output" then
+      opts.output = optarg
     elseif opt == "example" then
       opts.example = optarg
       return opts
@@ -244,6 +254,8 @@ local function main(): integer, string
       io.write("Cosmic options:\n")
       io.write("  --compile <file.tl>      compile Teal file to Lua (stdout)\n")
       io.write("  --check <file.tl>        type-check a Teal file\n")
+      io.write("  --embed <file>           embed file(s) into cosmic (use multiple times)\n")
+      io.write("  --output <file>          output file for --embed (default: cosmic)\n")
       io.write("  --example <file.tl>      run Example_* functions, check output\n")
       io.write("  --doc <file.tl>          generate markdown documentation\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
@@ -290,6 +302,14 @@ local function main(): integer, string
     else
       return 1
     end
+  end
+
+  -- Handle --embed
+  if #opts.embed > 0 then
+    local embed = require("cosmic.embed")
+    local result = embed.run(opts.embed, opts.output)
+    io.write(result.message .. "\n")
+    return result.ok and 0 or 1
   end
 
   -- Handle --example
