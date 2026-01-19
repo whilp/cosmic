@@ -219,6 +219,13 @@ doc-export: doc
 	@test -n "$(DOCS_DEST)" || { echo "DOCS_DEST required"; exit 1; }
 	@$(foreach f,$(all_docs),mkdir -p $(dir $(DOCS_DEST)/$(f:$(o)/%=%)) && cp $(f) $(DOCS_DEST)/$(f:$(o)/%=%);)
 
+.PHONY: doc-publish
+## Publish docs to git branch (SOURCE_SHA, DOCS_DIR, DOCS_BRANCH required)
+doc-publish: $(docs_publish) | $(bootstrap_cosmic)
+	@test -n "$(SOURCE_SHA)" || { echo "SOURCE_SHA required"; exit 1; }
+	@test -n "$(DOCS_DIR)" || { echo "DOCS_DIR required"; exit 1; }
+	@$(bootstrap_cosmic) -- $(docs_publish) $(SOURCE_SHA) $(DOCS_DIR) $(or $(DOCS_BRANCH),docs)
+
 ci_stages := teal test build
 
 .PHONY: ci
