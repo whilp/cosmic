@@ -237,9 +237,9 @@ require("tl").loader()
 
   result.actual = table.concat(output_chunks)
 
-  -- Compare output (normalize trailing newlines like Go)
-  local expected_normalized = result.expected:gsub("\n+$", "\n")
-  local actual_normalized = result.actual:gsub("\n+$", "\n")
+  -- Compare output (strip trailing whitespace like Go)
+  local expected_normalized = result.expected:gsub("%s+$", "")
+  local actual_normalized = result.actual:gsub("%s+$", "")
   if actual_normalized == expected_normalized then
     result.passed = true
   end

@@ -185,8 +185,9 @@ bootstrap: $(bootstrap_files)
 ## Build cosmic binary
 build: cosmic
 
-# Example testing - run Example_* functions in .tl files
-all_example_srcs := $(call filter-only,$(foreach m,$(modules),$($(m)_tl_srcs)))
+# Example testing - run Example_* functions in .tl files (exclude test files)
+# Note: filter-out can't use two % patterns, so we filter by checking for /test_ in path
+all_example_srcs := $(call filter-only,$(foreach f,$(foreach m,$(modules),$($(m)_tl_srcs)),$(if $(findstring /test_,$(f)),,$(f))))
 all_examples := $(patsubst %.tl,$(o)/%.tl.example.got,$(all_example_srcs))
 
 .PHONY: example
