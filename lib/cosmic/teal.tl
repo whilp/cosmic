@@ -64,7 +64,7 @@ end
 
 -- Process a Teal file: read, setup paths, run tl.process_string
 -- Returns ProcessResult with tl_result on success, or error on failure
-local function process_file(input_path: string, include_dirs: {string}): ProcessResult
+local function process_file(input_path: string, include_dirs: {string}, lax: boolean): ProcessResult
   local f, open_err = io.open(input_path, "r")
   if not f then
     return {
@@ -98,7 +98,7 @@ local function process_file(input_path: string, include_dirs: {string}): Process
     package.path = package.path .. ";" .. dir .. "/?/init.d.tl"
   end
 
-  local env = tl.init_env(false)
+  local env = tl.init_env(lax)
   local result, proc_err = tl.process_string(input, false, env, input_path)
 
   package.path = saved_path
@@ -158,7 +158,7 @@ end
 local function compile(input_path: string, opts: CompileOpts): CompileResult
   opts = opts or {} as CompileOpts
 
-  local proc = process_file(input_path, opts.include_dirs)
+  local proc = process_file(input_path, opts.include_dirs, true)
   if proc.error then
     return {ok = false, code = nil, errors = {proc.error}}
   end
@@ -186,7 +186,7 @@ end
 local function check(input_path: string, opts: CheckOpts): CheckResult
   opts = opts or {} as CheckOpts
 
-  local proc = process_file(input_path, opts.include_dirs)
+  local proc = process_file(input_path, opts.include_dirs, false)
   if proc.error then
     return {ok = false, warnings = {}, errors = {proc.error}}
   end
