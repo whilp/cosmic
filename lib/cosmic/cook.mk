@@ -23,6 +23,7 @@ $(cosmic_bin): $(cosmic_libs) $(cosmic_main) $(cosmic_args) $(cosmic_tl_gen) $$(
 	@$(cp) $(cosmic_libs) $(cosmic_built)/.lua/cosmic/
 	@$(cp) $(tl_dir)/tl.lua $(cosmic_built)/.lua/
 	@cp -r $(teal-types_dir)/types $(cosmic_built)/.lua/teal-types
+	@cp -r lib/types $(cosmic_built)/.lua/types
 	@$(cp) $(cosmos_lua) $@
 	@chmod +x $@
 	@cd $(cosmic_built) && $(CURDIR)/$(cosmos_zip) -qr $(CURDIR)/$@ .lua
