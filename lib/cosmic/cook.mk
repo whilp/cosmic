@@ -14,6 +14,7 @@ $(cosmic_bin): $$(cosmic_lua) $(cosmic_main) $(cosmic_args) $$(tl_staged) $$(tea
 	@rm -rf $(cosmic_built)
 	@mkdir -p $(cosmic_built)/.lua/cosmic $(@D)
 	@$(cp) $(cosmic_lua) $(cosmic_built)/.lua/cosmic/
+	@$(cp) $(cosmic_tl) $(cosmic_built)/.lua/cosmic/
 	@$(cp) $(tl_dir)/tl.lua $(cosmic_built)/.lua/
 	@cp -r $(teal-types_dir)/types $(cosmic_built)/.lua/teal-types
 	@cp -r lib/types $(cosmic_built)/.lua/types
