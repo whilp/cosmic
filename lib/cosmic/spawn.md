@@ -1,12 +1,21 @@
 # spawn
 
+ Process spawning utilities.
+ Spawn external processes with control over stdin, stdout, and stderr.
+
 ## Types
 
 ### Pipe
 
+ Pipe for reading/writing process I/O.
+
 ### SpawnHandle
 
+ Handle for a spawned process.
+
 ### SpawnOpts
+
+ Options for spawning a process.
 
 ### SpawnModule
 
