@@ -299,13 +299,30 @@ local function main(): integer, string
       return 1, "error: could not determine current executable path"
     end
 
-    -- Check if all input files exist
+    -- Check if all input files exist and read their contents
+    local record FileToEmbed
+      path: string
+      content: string
+      stored_name: string
+    end
+    local files_to_embed: {FileToEmbed} = {}
     for _, file in ipairs(opts.embed) do
-      local f = io.open(file, "rb")
+      local f, open_err = io.open(file, "rb")
       if not f then
-        return 1, "error: cannot open file '" .. file .. "'"
+        return 1, "error: cannot open file '" .. file .. "': " .. (open_err or "unknown error")
       end
+      local content = f:read("*a")
       f:close()
+
+      -- Determine stored name in zip
+      -- Strip leading / for absolute paths to make them relative
+      local stored_name = file:gsub("^/+", "")
+
+      files_to_embed[#files_to_embed + 1] = {
+        path = file,
+        content = content,
+        stored_name = stored_name,
+      }
     end
 
     local spawn = require("cosmic.spawn")
@@ -330,46 +347,24 @@ local function main(): integer, string
       return 1, "error: failed to make output executable" .. (wait_err and (": " .. wait_err) or "")
     end
 
-    -- Find the cosmopolitan zip utility
-    -- Try multiple locations:
-    -- 1. Same directory as cosmic (o/bin/zip)
-    -- 2. Relative to cosmic in cosmos staging (o/cosmos/.staged/zip)
-    -- 3. In /zip/ (embedded in cosmic itself)
-    local exe_dir = current_exe:match("^(.+)/[^/]+$") or "."
-    local zip_candidates = {
-      exe_dir .. "/zip",
-      exe_dir .. "/../cosmos/.staged/zip",
-      "/zip/zip",
-    }
+    -- Use cosmo.zip to append files to the executable
+    local zip = require("cosmo.zip")
+    local appender, zip_err = zip.open(output, "a")
+    if not appender then
+      return 1, "error: failed to open zip for appending: " .. (zip_err or "unknown error")
+    end
+    assert(appender, "appender should not be nil after check")
 
-    local zip_path: string = nil
-    for _, candidate in ipairs(zip_candidates) do
-      local f = io.open(candidate, "r")
-      if f then
-        f:close()
-        zip_path = candidate
-        break
+    -- Add each file to the zip
+    for _, file_info in ipairs(files_to_embed) do
+      local ok, add_err = appender:add(file_info.stored_name, file_info.content)
+      if not ok then
+        appender:close()
+        return 1, "error: failed to add '" .. file_info.path .. "' to zip: " .. (add_err or "unknown error")
       end
     end
 
-    if not zip_path then
-      return 1, "error: cosmopolitan zip utility not found (tried: " .. table.concat(zip_candidates, ", ") .. ")"
-    end
-
-    -- Add files to the output using zip
-    local zip_args = {zip_path, "-q", output}
-    for _, file in ipairs(opts.embed) do
-      zip_args[#zip_args + 1] = file
-    end
-
-    handle, err = spawn(zip_args)
-    if not handle then
-      return 1, "error: failed to spawn zip: " .. err
-    end
-    exitcode, wait_err = handle:wait()
-    if exitcode ~= 0 then
-      return 1, "error: failed to embed files" .. (wait_err and (": " .. wait_err) or "")
-    end
+    appender:close()
 
     io.write("Successfully embedded " .. #opts.embed .. " file(s) into " .. output .. "\n")
     return 0
