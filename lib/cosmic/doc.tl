@@ -546,9 +546,27 @@ local function render(doc: ModuleDoc): string
   end
 
   -- Functions
+  -- Identify exported functions by checking the module record
+  local exported_names: {string:boolean} = {}
+
+  -- Find the module record (typically ends with "Module")
+  for _, rec in ipairs(doc.records) do
+    if rec.name:match("Module$") then
+      -- Extract function names from the module record fields
+      for _, field in ipairs(rec.fields) do
+        local field_name, field_type = field[1], field[2]
+        -- Check if this field is a function type
+        if field_type:match("^function") then
+          exported_names[field_name] = true
+        end
+      end
+    end
+  end
+
   local exported_functions: {FunctionDoc} = {}
   for _, func in ipairs(doc.functions) do
-    if not func.is_local then
+    -- Include if it's non-local OR if it's local but exported via module record
+    if not func.is_local or exported_names[func.name] then
       table.insert(exported_functions, func)
     end
   end
