@@ -2,13 +2,21 @@
 -- Test the Makefile help system
 
 local cosmo = require("cosmo")
-local help = require("make-help")
 
 local record HelpItem
   type: string
   name: string
   description: string
 end
+
+local record HelpModule
+  parse_makefile: function(content: string): {HelpItem}
+  format_help: function(items: {HelpItem}): string
+  parse_phony_targets: function(content: string): {string:boolean}
+end
+
+local rawrequire = rawget(_G, "require") as function(string): HelpModule
+local help = rawrequire("make-help")
 
 local function test_parse_multiline_comment()
   local content = [[
@@ -23,7 +31,7 @@ clean:
 	@rm -rf o
 ]]
 
-  local items = help.parse_makefile(content) as {HelpItem}
+  local items = help.parse_makefile(content)
   assert(#items == 2, "expected 2 items")
   assert(items[1].type == "target", "expected target type")
   assert(items[1].name == "test", "expected test target")
@@ -43,7 +51,7 @@ test:
 	@echo "testing"
 ]]
 
-  local items = help.parse_makefile(content) as {HelpItem}
+  local items = help.parse_makefile(content)
   assert(#items == 1, "expected 1 item")
   assert(items[1].type == "target", "expected target type")
   assert(items[1].name == "test", "expected test target")
@@ -63,7 +71,7 @@ undocumented:
 	@echo "undocumented"
 ]]
 
-  local items = help.parse_makefile(content) as {HelpItem}
+  local items = help.parse_makefile(content)
   assert(#items == 1, "expected 1 item")
   assert(items[1].type == "target", "expected target type")
   assert(items[1].name == "documented", "expected documented target")
@@ -79,7 +87,7 @@ filter-only = $(if $(only),$(foreach f,$1,$(if $(findstring $(only),$(f)),$(f)))
 o := output
 ]]
 
-  local items = help.parse_makefile(content) as {HelpItem}
+  local items = help.parse_makefile(content)
   assert(#items == 2, "expected 2 items")
   assert(items[1].type == "option", "expected option type")
   assert(items[1].name == "filter-only", "expected filter-only option")
@@ -117,7 +125,7 @@ build:
 	@echo "building"
 ]]
 
-  local targets = help.parse_phony_targets(content) as {string:boolean}
+  local targets = help.parse_phony_targets(content)
   assert(targets["test"], "expected test target")
   assert(targets["clean"], "expected clean target")
   assert(targets["build"], "expected build target")
@@ -126,12 +134,11 @@ end
 test_parse_phony_targets()
 
 local function test_all_phony_targets_documented()
-  local content, err = cosmo.Slurp("Makefile")
-  assert(content, err or "failed to read Makefile")
+  local content = cosmo.Slurp("Makefile")
+  assert(content, "failed to read Makefile")
 
-  local phony = help.parse_phony_targets(content) as {string:boolean}
-  local items = help.parse_makefile(content) as {HelpItem}
-
+  local phony = help.parse_phony_targets(content)
+  local items = help.parse_makefile(content)
   local documented: {string:boolean} = {}
   for _, item in ipairs(items) do
     if item.type == "target" then

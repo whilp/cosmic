@@ -5,12 +5,6 @@ local path = require("cosmo.path")
 
 global TEST_TMPDIR: string
 
-local record Stat
-  mode: function(self): number
-  size: function(self): number
-  mtim: function(self): number
-end
-
 local record WalkContext
   count: number
   dirs: number
@@ -73,10 +67,14 @@ local function test_walk_with_visitor()
   local test_dir = setup()
   local ctx: WalkContext = { count = 0, dirs = 0 }
 
-  walk.walk(test_dir, function(_full_path: string, _entry: string, stat: Stat, c: WalkContext): boolean
-    c.count = c.count + 1
-    if unix.S_ISDIR(stat:mode()) then
-      c.dirs = c.dirs + 1
+  local rawwalk = rawget(walk, "walk") as function(string, any, any)
+  rawwalk(test_dir, function(_full_path: string, _entry: string, stat: any, c: any): boolean
+    local wctx = c as WalkContext
+    wctx.count = wctx.count + 1
+    local stat_tbl = stat as {string:function(any):number}
+    local mode = stat_tbl.mode(stat)
+    if unix.S_ISDIR(mode) then
+      wctx.dirs = wctx.dirs + 1
     end
     return true
   end, ctx)

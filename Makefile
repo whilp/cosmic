@@ -58,10 +58,7 @@ $(o)/%: %
 # Use $$(tl_staged) for secondary expansion - variable is set after includes
 $(o)/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files) $$(tl_staged)
 	@mkdir -p $(@D)
-	@$(tl_gen) $< -o $@
-	@if head -1 $< | grep -q '^#!/'; then \
-		( head -1 $< && cat $@ ) > $@.tmp && mv $@.tmp $@; \
-	fi
+	@$(bootstrap_cosmic) --compile $< > $@
 
 # bin scripts: o/bin/X.lua from lib/*/X.lua and 3p/*/X.lua
 vpath %.lua lib/build 3p/tl
@@ -73,7 +70,7 @@ $(o)/bin/%.lua: %.lua
 # bin scripts from teal: o/bin/X.lua from 3p/*/X.tl (vpath finds X.tl)
 $(o)/bin/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files) | $(tl_staged)
 	@mkdir -p $(@D)
-	@$(tl_gen) $< -o $@
+	@$(bootstrap_cosmic) --compile $< > $@
 
 # files are produced in o/
 all_files += $(call filter-only,$(foreach x,$(modules),$($(x)_files)))
@@ -105,7 +102,6 @@ $(foreach m,$(filter-out $(default_deps),$(modules)),\
       $(eval $($(m)_files): $($(d)_staged)))))
 
 all_versions := $(call filter-only,$(foreach x,$(modules),$($(x)_version)))
-all_updated := $(patsubst %,$(o)/%.update.ok,$(all_versions))
 
 # versioned modules: o/module/.versioned -> version.lua
 $(foreach m,$(modules),$(if $($(m)_version),\
@@ -170,7 +166,7 @@ export NO_COLOR := 1
 # Test rule: execute test directly via shebang, capture exit code, stdout, stderr
 $(o)/%.tl.test.got: .PLEDGE = stdio rpath wpath cpath proc exec
 $(o)/%.tl.test.got: .UNVEIL = rx:$(o)/bootstrap r:lib r:3p rwc:$(o) rwc:$(TMP) rx:/usr rx:/proc r:/etc r:/dev/null
-$(o)/%.tl.test.got: $(o)/%.lua $(test_files) $(checker_files) $(o)/bin/cosmic | $(bootstrap_files)
+$(o)/%.tl.test.got: $(o)/%.lua $(test_files) $(o)/bin/cosmic | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@chmod +x $<
 	-@PATH=$(CURDIR)/o/bin:$$PATH TEST_DIR=$(TEST_DIR) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
@@ -213,11 +209,11 @@ astgrep: $(o)/astgrep-summary.txt
 $(o)/astgrep-summary.txt: $(all_astgreps) | $(build_reporter)
 	@$(reporter) --dir $(o) $^ | tee $@
 
-$(o)/%.ast-grep.ok: $(o)/% $(ast-grep_files) $(checker_files) $(tl_staged) | $(bootstrap_files) $(ast-grep_staged)
+$(o)/%.ast-grep.ok: $(o)/% $(ast-grep_files) $(tl_staged) | $(bootstrap_files) $(ast-grep_staged)
 	@mkdir -p $(@D)
 	@ASTGREP_BIN=$(ast-grep_staged) $(astgrep_runner) $< > $@
 
-all_teals := $(patsubst %,%.teal.ok,$(all_checkable_files))
+all_teals := $(patsubst %,%.teal.got,$(all_checkable_files))
 
 ## Run teal type checker on all files
 teal: $(o)/teal-summary.txt
@@ -225,9 +221,9 @@ teal: $(o)/teal-summary.txt
 $(o)/teal-summary.txt: $(all_teals) | $(build_reporter)
 	@$(reporter) --dir $(o) $^ | tee $@
 
-$(o)/%.teal.ok: $(o)/% $(tl_files) $(checker_files) $(tl_staged) $$(teal-types_staged) | $(bootstrap_files)
+$(o)/%.teal.got: $(o)/% $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
-	@TL_BIN=$(tl_staged) TL_INCLUDE_DIR="lib/types:$(teal-types_dir)/types" $(teal_runner) $< > $@
+	-@$(cosmic_bin) --check $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
 
 ## Run bun syntax checker on .gs/.js files
 bun: $(o)/bun-summary.txt
@@ -256,24 +252,6 @@ $(o)/check-summary.txt: $(all_checks) | $(build_reporter)
 .PHONY: check-test-coverage
 check-test-coverage: $(test_check_coverage) | $(bootstrap_files)
 	@$(coverage_checker) $(all_declared_tests)
-
-## Check for dependency updates
-update: $(o)/update-summary.txt
-
-$(o)/update-summary.txt: $(all_updated) | $(build_reporter)
-	@$(reporter) --dir $(o) $^ | tee $@
-
-$(o)/%.update.ok: % $(build_check_update) $(checker_files) | $(bootstrap_files)
-	@mkdir -p $(@D)
-	@$(update_runner) $< > $@
-
-## Apply dependency updates (use with only=<module>)
-.PHONY: bump
-bump: $(all_updated)
-	@for ok in $^; do \
-	  ver=$${ok#$(o)/}; ver=$${ver%.update.ok}; \
-	  $(update_runner) --apply "$$ok" "$$ver"; \
-	done
 
 .PHONY: build
 ## Build cosmic binary

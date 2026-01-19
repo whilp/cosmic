@@ -15,7 +15,7 @@ local function main(fn: MainFn)
   local env: Env = {stderr = io.stderr, stdout = io.stdout}
   local code, err = fn(arg, env)
   if err then env.stderr:write(err .. "\n") end
-  os.exit(code or 0)
+  os.exit((code or 0) as integer)
 end
 
 local record cosmic

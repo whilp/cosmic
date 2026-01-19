@@ -33,7 +33,7 @@ local function run_reporter(...: string): integer, string, string
 
   local lua_path = os.getenv("LUA_PATH") or ""
   local new_lua_path = "o/lib/?.lua;o/lib/?/init.lua;;" .. lua_path
-  unix.setenv("LUA_PATH", new_lua_path, true)
+  unix.setenv("LUA_PATH", new_lua_path)
 
   local handle = spawn(args) as SpawnHandle
   local stderr_content = handle.stderr and handle.stderr:read() or ""

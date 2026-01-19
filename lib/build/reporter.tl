@@ -2,7 +2,6 @@
 
 local cosmo = require("cosmo")
 local getopt = require("cosmo.getopt")
-local common = require("checker.common")
 
 local record CheckResult
   status: string
@@ -19,11 +18,89 @@ local record CategorizedResults
   ignore: {CheckResult}
 end
 
+local status_icons: {string:string} = {
+  pass = "✓",
+  fail = "✗",
+  skip = "→",
+  ignore = "○",
+}
+
 local function extract_checker(filename: string): string
   return filename:match("%.([^%.]+)%.got$")
 end
 
-local function main(...: string): number, string
+local function format_results(results: {CheckResult}): string
+  local lines: {string} = {}
+  for _, result in ipairs(results) do
+    local status = string.upper(result.status)
+    local icon = status_icons[result.status] or " "
+    local checker = result.checker or ""
+    local line = string.format("%s %-6s %-8s %s", icon, status, checker, result.name)
+    if result.status ~= "pass" and result.message and result.message ~= "" then
+      line = line .. " (" .. result.message .. ")"
+    end
+    table.insert(lines, line)
+  end
+  return table.concat(lines, "\n")
+end
+
+local function format_summary(checker_name: string, results: CategorizedResults): string
+  local total = #results.pass + #results.fail + #results.skip + #results.ignore
+  if total == 0 then
+    return ""
+  end
+  return string.format(
+    "%s: %d checks: %d passed, %d failed, %d skipped, %d ignored",
+    checker_name, total, #results.pass, #results.fail, #results.skip, #results.ignore
+  )
+end
+
+local function format_failures(results: {CheckResult}): string
+  local has_failures = false
+  for _, result in ipairs(results) do
+    if result.status == "fail" then
+      has_failures = true
+      break
+    end
+  end
+  if not has_failures then
+    return nil
+  end
+
+  local lines: {string} = {"", "FAILURES:"}
+  for _, result in ipairs(results) do
+    if result.status == "fail" then
+      table.insert(lines, "")
+      if result.checker then
+        table.insert(lines, string.format("--- %s (%s) ---", result.name, result.checker))
+      else
+        table.insert(lines, string.format("--- %s ---", result.name))
+      end
+      if result.message and result.message ~= "" then
+        table.insert(lines, result.message)
+      end
+      -- read full output files for failures
+      if result.file then
+        local base = result.file:gsub("%.got$", "")
+        local out = cosmo.Slurp(base .. ".out") or ""
+        local err = cosmo.Slurp(base .. ".err") or ""
+        if out ~= "" then
+          table.insert(lines, "")
+          table.insert(lines, "stdout:")
+          table.insert(lines, out)
+        end
+        if err ~= "" then
+          table.insert(lines, "")
+          table.insert(lines, "stderr:")
+          table.insert(lines, err)
+        end
+      end
+    end
+  end
+  return table.concat(lines, "\n")
+end
+
+local function main(...: string): integer, string
   local args = {...}
   local dir: string = nil
 
@@ -48,7 +125,7 @@ local function main(...: string): number, string
     return 1, "error: --dir is required"
   end
 
-  local function name_transform(file_name: string): string
+  local function strip_prefix(file_name: string): string
     if file_name:sub(1, #dir) == dir and file_name:sub(#dir + 1, #dir + 1) == "/" then
       return file_name:sub(#dir + 2)
     end
@@ -78,8 +155,7 @@ local function main(...: string): number, string
 
   for _, checker in ipairs(checkers) do
     local results: CategorizedResults = {pass = {}, fail = {}, skip = {}, ignore = {}}
-    local strip_suffix = "%." .. checker:gsub("%-", "%%-") .. "%.got$"
-    local show_checker = checker ~= "update"
+    local strip_suffix = "%." .. string.gsub(checker, "%-", "%%-") .. "%.got$"
 
     local result_files = checker_files[checker]
     table.sort(result_files)
@@ -89,7 +165,7 @@ local function main(...: string): number, string
       if content then
         local exit_code = tonumber(content:match("^(%d+)"))
         local status_str = exit_code == 0 and "pass" or "fail"
-        local base = file:gsub("%.got$", "")
+        local base = string.gsub(file, "%.got$", "")
         local out_content = cosmo.Slurp(base .. ".out") or ""
         local err_content = cosmo.Slurp(base .. ".err") or ""
 
@@ -100,12 +176,15 @@ local function main(...: string): number, string
           message = out_content:match("([^\n]+)\n*$") or ""
         end
 
+        local name_stripped = strip_prefix(file)
+        name_stripped = string.gsub(name_stripped, strip_suffix, "")
+
         local result: CheckResult = {
           status = status_str,
           message = message,
-          name = name_transform(common.strip_prefix(file):gsub(strip_suffix, "")),
+          name = name_stripped,
           file = file,
-          checker = show_checker and checker or nil,
+          checker = checker,
         }
 
         local status_list = (results as {string:{CheckResult}})[result.status]
@@ -127,15 +206,14 @@ local function main(...: string): number, string
 
   -- build output
   local parts: {string} = {}
-  local status_icons = common.status_icons()
-  table.insert(parts, common.format_results(all_results as {common.CheckResult}, status_icons))
+  table.insert(parts, format_results(all_results))
 
   -- per-checker summaries
   local total_passed, total_failed, total_skipped, total_ignored = 0, 0, 0, 0
 
   for _, checker in ipairs(checkers) do
     local results = checker_results[checker]
-    local summary = common.format_summary(checker, results as common.CategorizedResults)
+    local summary = format_summary(checker, results)
     if summary and summary ~= "" then
       table.insert(parts, summary)
     end
@@ -156,7 +234,7 @@ local function main(...: string): number, string
   end
 
   -- failures
-  local failures = common.format_failures(all_results as {common.CheckResult})
+  local failures = format_failures(all_results)
   if failures then
     table.insert(parts, failures)
   end
