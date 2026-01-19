@@ -4,8 +4,7 @@ local path = require("cosmo.path")
 local spawn = require("cosmic.spawn")
 
 local lua_bin = path.join(os.getenv("TEST_BIN"), "cosmic")
-
-global TEST_TMPDIR: string
+local TEST_TMPDIR = os.getenv("TEST_TMPDIR")
 
 local function test_simple_command()
   local handle = spawn({lua_bin, "-e", "print('hello')"})
