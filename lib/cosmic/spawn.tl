@@ -61,9 +61,9 @@ local function make_pipe(fd: number): Pipe
   end
 
   --- Close the pipe and release the file descriptor.
-  function pipe:close()
+  pipe.close = function(self: Pipe)
     if self.fd then
-      unix.close(self.fd)
+      local _ = unix.close(self.fd)
       self.fd = nil
     end
   end

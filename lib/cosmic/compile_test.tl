@@ -151,4 +151,18 @@ print(x)
 end
 test_compile_no_shebang()
 
+-- Test that compile uses lax mode (allows unknown variables)
+local function test_compile_lax_mode()
+  local input = write_temp("lax_mode.tl", [[
+local function foo()
+  return unknown_global_var
+end
+]])
+
+  local ok, out = spawn({cosmic, "--compile", input}):read()
+  assert(ok, "compile should succeed in lax mode with unknown variables")
+  assert((out as string):find("unknown_global_var"), "output should contain the unknown variable")
+end
+test_compile_lax_mode()
+
 print("All compile tests passed!")

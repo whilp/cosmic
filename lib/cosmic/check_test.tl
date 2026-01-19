@@ -82,4 +82,18 @@ print(result)
 end
 test_check_with_cosmic_types()
 
+-- Test that check uses strict mode (rejects unknown variables)
+-- This same code compiles successfully in lax mode (see compile_test.tl)
+local function test_check_strict_mode()
+  local input = write_temp("strict_mode.tl", [[
+local function foo()
+  return unknown_global_var
+end
+]])
+
+  local ok, _ = spawn({cosmic, "--check", input}):read()
+  assert(not ok, "check should fail in strict mode with unknown variables")
+end
+test_check_strict_mode()
+
 print("All check tests passed!")
