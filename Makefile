@@ -45,9 +45,6 @@ help: $(build_files) | $(bootstrap_cosmic)
 ## Filter targets by pattern (make test only='teal')
 filter-only = $(if $(only),$(foreach f,$1,$(if $(findstring $(only),$(f)),$(f))),$1)
 
-# srcs are copied to o/
-all_files := $(call filter-only,$(foreach x,$(modules),$(addprefix $(o)/$(x)/,$($(x)_srcs))))
-
 cp := cp -p
 
 $(o)/%: %
@@ -72,13 +69,9 @@ $(o)/bin/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files) | $(tl_staged
 	@mkdir -p $(@D)
 	@$(bootstrap_cosmic) --compile $< > $@
 
-# files are produced in o/
-all_files += $(call filter-only,$(foreach x,$(modules),$($(x)_files)))
-
 # tl files: modules declare _tl_files, derive compiled .lua outputs
 all_tl_files := $(call filter-only,$(foreach x,$(modules),$($(x)_tl_files)))
 all_tl_lua := $(patsubst %.tl,$(o)/%.lua,$(all_tl_files))
-all_files += $(all_tl_lua)
 
 # define *_staged, *_dir for versioned modules (must be before dep expansion)
 # modules can override *_dir for post-processing (e.g., nvim bundles plugins)
