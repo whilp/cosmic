@@ -1,7 +1,7 @@
 .SECONDEXPANSION:
 .SECONDARY:
 SHELL := /bin/bash
-.SHELLFLAGS := -o pipefail -ec
+.SHELLFLAGS := -o pipefail -c
 .DEFAULT_GOAL := help
 
 MAKEFLAGS += --no-print-directory

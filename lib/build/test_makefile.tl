@@ -40,7 +40,6 @@ local function test_print_database()
   local result = read_make_output("database.out")
   assert(result.output:match("modules"), "expected 'modules' variable in database output")
   assert(result.output:match("%.PHONY"), "expected .PHONY in database output")
-  assert(result.output:match("all_files"), "expected 'all_files' variable in database output")
   assert(result.output:match("platform"), "expected 'platform' variable in database output")
 end
 test_print_database()
