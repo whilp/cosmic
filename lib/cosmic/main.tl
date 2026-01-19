@@ -22,6 +22,8 @@ local record Opts
   script_args: {integer:string}
   compile: string          -- Input file for --compile (outputs to stdout)
   check: string            -- Input file for --check
+  embed: {string}          -- Files to embed via --embed
+  output: string           -- Output file for --embed (defaults to "cosmic")
   error: string            -- Parse error message
 end
 
@@ -38,6 +40,8 @@ local function parse_args(): Opts
     script_args = {},
     compile = nil,
     check = nil,
+    embed = {},
+    output = nil,
     error = nil,
   }
 
@@ -46,6 +50,8 @@ local function parse_args(): Opts
     { "help", "optional", "h" },
     { "compile", "required", nil },
     { "check", "required", nil },  -- Takes first file, remaining files via remaining()
+    { "embed", "required", nil },
+    { "output", "required", nil },
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -161,6 +167,10 @@ local function parse_args(): Opts
     elseif opt == "check" then
       opts.check = optarg
       return opts
+    elseif opt == "embed" then
+      opts.embed[#opts.embed + 1] = optarg
+    elseif opt == "output" then
+      opts.output = optarg
     end
   end
 
@@ -232,6 +242,8 @@ local function main(): integer, string
       io.write("Cosmic options:\n")
       io.write("  --compile <file.tl>      compile Teal file to Lua (stdout)\n")
       io.write("  --check <file.tl>        type-check a Teal file\n")
+      io.write("  --embed <file>           embed file(s) into cosmic (use multiple times)\n")
+      io.write("  --output <file>          output file for --embed (default: cosmic)\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
       io.write("\n")
       io.write("Standard lua options:\n")
@@ -276,6 +288,91 @@ local function main(): integer, string
     else
       return 1
     end
+  end
+
+  -- Handle --embed
+  if #opts.embed > 0 then
+    local output = opts.output or "cosmic"
+    local current_exe = arg[-1]
+
+    if not current_exe then
+      return 1, "error: could not determine current executable path"
+    end
+
+    -- Check if all input files exist
+    for _, file in ipairs(opts.embed) do
+      local f = io.open(file, "rb")
+      if not f then
+        return 1, "error: cannot open file '" .. file .. "'"
+      end
+      f:close()
+    end
+
+    local spawn = require("cosmic.spawn")
+
+    -- Use cp to copy the executable
+    local handle, err = spawn({"cp", "-p", current_exe, output})
+    if not handle then
+      return 1, "error: failed to spawn cp: " .. err
+    end
+    local exitcode, wait_err = handle:wait()
+    if exitcode ~= 0 then
+      return 1, "error: failed to copy executable" .. (wait_err and (": " .. wait_err) or "")
+    end
+
+    -- Make it executable
+    handle, err = spawn({"chmod", "+x", output})
+    if not handle then
+      return 1, "error: failed to spawn chmod: " .. err
+    end
+    exitcode, wait_err = handle:wait()
+    if exitcode ~= 0 then
+      return 1, "error: failed to make output executable" .. (wait_err and (": " .. wait_err) or "")
+    end
+
+    -- Find the cosmopolitan zip utility
+    -- Try multiple locations:
+    -- 1. Same directory as cosmic (o/bin/zip)
+    -- 2. Relative to cosmic in cosmos staging (o/cosmos/.staged/zip)
+    -- 3. In /zip/ (embedded in cosmic itself)
+    local exe_dir = current_exe:match("^(.+)/[^/]+$") or "."
+    local zip_candidates = {
+      exe_dir .. "/zip",
+      exe_dir .. "/../cosmos/.staged/zip",
+      "/zip/zip",
+    }
+
+    local zip_path: string = nil
+    for _, candidate in ipairs(zip_candidates) do
+      local f = io.open(candidate, "r")
+      if f then
+        f:close()
+        zip_path = candidate
+        break
+      end
+    end
+
+    if not zip_path then
+      return 1, "error: cosmopolitan zip utility not found (tried: " .. table.concat(zip_candidates, ", ") .. ")"
+    end
+
+    -- Add files to the output using zip
+    local zip_args = {zip_path, "-q", output}
+    for _, file in ipairs(opts.embed) do
+      zip_args[#zip_args + 1] = file
+    end
+
+    handle, err = spawn(zip_args)
+    if not handle then
+      return 1, "error: failed to spawn zip: " .. err
+    end
+    exitcode, wait_err = handle:wait()
+    if exitcode ~= 0 then
+      return 1, "error: failed to embed files" .. (wait_err and (": " .. wait_err) or "")
+    end
+
+    io.write("Successfully embedded " .. #opts.embed .. " file(s) into " .. output .. "\n")
+    return 0
   end
 
   -- Handle -W warnings: convert warnings to errors
