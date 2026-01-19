@@ -53,9 +53,9 @@ local function make_pipe(fd: number): Pipe
     return table.concat(chunks)
   end
 
-  function pipe:close()
+  pipe.close = function(self: Pipe)
     if self.fd then
-      unix.close(self.fd)
+      local _ = unix.close(self.fd)
       self.fd = nil
     end
   end
