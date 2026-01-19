@@ -9,6 +9,28 @@
 
  Result returned from embed operation.
 
+```teal
+local record EmbedResult
+  ok: boolean
+  message: string
+  file_count: integer
+end
+```
+
 ### FileToEmbed
 
+```teal
+local record FileToEmbed
+  path: string
+  content: string
+  stored_name: string
+end
+```
+
 ### EmbedModule
+
+```teal
+local record EmbedModule
+  run: function(files: {string}, output?: string, exe_path?: string): EmbedResult
+end
+```

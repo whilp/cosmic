@@ -9,15 +9,51 @@
 
  Pipe for reading/writing process I/O.
 
+```teal
+local record Pipe
+  fd: number
+  write: function(self: Pipe, data: string): number
+  read: function(self: Pipe, size?: number): string
+  close: function(self: Pipe)
+end
+```
+
 ### SpawnHandle
 
  Handle for a spawned process.
+
+```teal
+local record SpawnHandle
+  pid: number
+  stdin: Pipe
+  stdout: Pipe
+  stderr: Pipe
+  wait: function(self: SpawnHandle): number, string
+  read: function(self: SpawnHandle, size?: number): boolean | string, string, number
+end
+```
 
 ### SpawnOpts
 
  Options for spawning a process.
 
+```teal
+local record SpawnOpts
+  stdin: string | number
+  stdout: number
+  stderr: number
+  env: {string}
+end
+```
+
 ### SpawnModule
+
+```teal
+local record SpawnModule
+  spawn: function(argv: {string}, opts?: SpawnOpts): SpawnHandle, string
+  __call: function(self: SpawnModule, argv: {string}, opts?: SpawnOpts): SpawnHandle, string
+end
+```
 
 ## Functions
 
@@ -93,13 +129,13 @@ function handle:read(size?: number): boolean | string, string, number
 
 ### spawn
 
+ Example_spawn demonstrates basic process spawning
+
 ```teal
   local spawn = require("cosmic.spawn")
   local h = spawn.spawn({"echo", "hello world"})
   local ok, out = h:read()
   print(out)
-  -- Output:
-  -- hello world
 ```
 
 Output:
@@ -110,13 +146,13 @@ hello world
 
 ### spawn stdin
 
+ Example_spawn_stdin demonstrates passing stdin to a process
+
 ```teal
   local spawn = require("cosmic.spawn")
   local h = spawn.spawn({"cat"}, {stdin = "hello from stdin"})
   local ok, out = h:read()
   print(out)
-  -- Output:
-  -- hello from stdin
 ```
 
 Output:
@@ -127,13 +163,13 @@ hello from stdin
 
 ### spawn exit code
 
+ Example_spawn_exit_code demonstrates checking exit codes
+
 ```teal
   local spawn = require("cosmic.spawn")
   local h = spawn.spawn({"sh", "-c", "exit 0"})
   local code = h:wait()
   print("exit code:", code)
-  -- Output:
-  -- exit code:	0
 ```
 
 Output:
