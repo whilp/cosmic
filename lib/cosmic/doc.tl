@@ -203,7 +203,7 @@ local function parse(source: string, file_path: string): ModuleDoc
 
   -- Find functions: local function name() or function name()
   -- Capture full signature including return types
-  for func_start, is_local, func_name in source:gmatch("()(local%s+)function%s+([%w_:]+)%s*%(") do
+  for func_start, is_local, func_name in source:gmatch("()(local%s+)function%s+([%w_:]+)<?[^>%(]*>?%s*%(") do
     update_line_num(func_start as integer)
 
     -- Skip if this is inside a comment
@@ -268,7 +268,7 @@ local function parse(source: string, file_path: string): ModuleDoc
   -- Also find non-local functions
   line_num = 1
   last_pos = 1
-  for func_start, func_name in source:gmatch("()function%s+([%w_:]+)%s*%(") do
+  for func_start, func_name in source:gmatch("()function%s+([%w_:]+)<?[^>%(]*>?%s*%(") do
     -- Skip if this is inside a comment
     local line_start = func_start as integer
     while line_start > 1 and source:sub(line_start - 1, line_start - 1) ~= "\n" do
