@@ -34,10 +34,10 @@ end
 test_cosmic_walk()
 
 local function test_cosmic_help()
-  local ok, out = spawn({cosmic, "-e", "require('cosmic.help').print_help()"}, {env = clean_env()}):read()
-  assert(ok, "cosmic exited with error")
+  local ok, out = spawn({cosmic, "--help"}, {env = clean_env()}):read()
+  assert(ok, "cosmic --help exited with error")
   assert((out as string):find("cosmic", 1, true), "expected output to contain 'cosmic'")
-  assert((out as string):find("cosmic.spawn", 1, true), "expected output to contain 'cosmic.spawn'")
+  assert((out as string):find("%-%-help", 1, false), "expected output to contain '--help'")
 end
 test_cosmic_help()
 
