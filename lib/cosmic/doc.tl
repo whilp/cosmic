@@ -36,6 +36,7 @@ end
 --- Documentation for an example function.
 local record ExampleDoc
   name: string
+  description: string
   body: string
   expected_output: string
   line: integer
@@ -50,12 +51,13 @@ local record ModuleDoc
   examples: {ExampleDoc}
 end
 
---- Extract leading doc comment (--- style) before a position.
+--- Extract leading doc comment (--- or -- style) before a position.
 --- Scans backwards from the given position to collect doc comment lines.
 --- @param source string The source code to search
 --- @param pos integer The position to search backwards from
+--- @param allow_regular_comments boolean If true, also extract -- style comments (default: false)
 --- @return string The extracted doc comment, or nil if none found
-local function extract_doc_comment(source: string, pos: integer): string
+local function extract_doc_comment(source: string, pos: integer, allow_regular_comments?: boolean): string
   -- Find the start of the line containing pos
   local line_start = pos
   while line_start > 1 and source:sub(line_start - 1, line_start - 1) ~= "\n" do
@@ -80,6 +82,19 @@ local function extract_doc_comment(source: string, pos: integer): string
     if doc_content then
       table.insert(doc_lines, 1, doc_content)
       check_pos = prev_line_start - 1
+    elseif allow_regular_comments then
+      -- Also check for regular -- comments if allowed
+      local regular_comment = line:match("^%s*%-%-([^%-].*)$")
+      if regular_comment then
+        table.insert(doc_lines, 1, regular_comment)
+        check_pos = prev_line_start - 1
+      elseif line:match("^%s*$") then
+        -- Empty line - stop
+        break
+      else
+        -- Non-doc line - stop
+        break
+      end
     elseif line:match("^%s*$") then
       -- Empty line - stop
       break
@@ -224,6 +239,11 @@ local function parse(source: string, file_path: string): ModuleDoc
 
       local signature = source:sub(sig_start, sig_end)
 
+      -- Skip malformed signatures (should not contain words like "everything", "until", etc)
+      if signature:match("%s+everything%s+") or signature:match("%s+until%s+") then
+        goto continue_local
+      end
+
       local func_doc = extract_doc_comment(source, func_start as integer)
       local params, returns, description = parse_annotations(func_doc)
 
@@ -236,6 +256,7 @@ local function parse(source: string, file_path: string): ModuleDoc
         line = line_num,
         is_local = is_local ~= nil,
       })
+      ::continue_local::
     end
   end
 
@@ -243,9 +264,9 @@ local function parse(source: string, file_path: string): ModuleDoc
   line_num = 1
   last_pos = 1
   for func_start, func_name in source:gmatch("()function%s+([%w_:]+)%s*%(") do
-    -- Skip if this is a "local function"
+    -- Skip if this is a "local function" or a function type annotation in a record
     local before = source:sub(math.max(1, (func_start as integer) - 20), (func_start as integer) - 1)
-    if not before:match("local%s*$") then
+    if not before:match("local%s*$") and not before:match(":%s*$") then
       update_line_num(func_start as integer)
 
       if not (func_name as string):match("^Example") then
@@ -280,6 +301,11 @@ local function parse(source: string, file_path: string): ModuleDoc
 
         local signature = source:sub(sig_start, sig_end)
 
+        -- Skip malformed signatures (should not contain words like "everything", "until", etc)
+        if signature:match("%s+everything%s+") or signature:match("%s+until%s+") then
+          goto continue_nonlocal
+        end
+
         local func_doc = extract_doc_comment(source, func_start as integer)
         local params, returns, description = parse_annotations(func_doc)
 
@@ -292,6 +318,7 @@ local function parse(source: string, file_path: string): ModuleDoc
           line = line_num,
           is_local = false,
         })
+        ::continue_nonlocal::
       end
     end
   end
@@ -305,10 +332,63 @@ local function parse(source: string, file_path: string): ModuleDoc
     local rec_doc = extract_doc_comment(source, rec_start as integer)
     local _, _, description = parse_annotations(rec_doc)
 
+    -- Extract fields from the record body
+    local fields: {{string, string, string}} = {}
+
+    -- Find the record body (between record Name and end)
+    local body_start = source:find("\n", rec_start as integer)
+    if body_start then
+      -- Find the matching end for this record
+      local depth = 1
+      local i = body_start + 1
+      local record_end = i
+
+      while i <= #source and depth > 0 do
+        local word_start, word_end, word = source:find("(%a+)", i)
+        if word_start == i then
+          if word == "record" or word == "enum" then
+            depth = depth + 1
+          elseif word == "end" then
+            depth = depth - 1
+            if depth == 0 then
+              record_end = word_start - 1
+            end
+          end
+          i = word_end + 1
+        else
+          i = i + 1
+        end
+      end
+
+      -- Now parse fields in the record body
+      local body = source:sub(body_start, record_end)
+      local field_pos = 1
+
+      while field_pos <= #body do
+        -- Find field definition: name: type
+        local fstart, fend, fname, ftype = body:find("%s*([%w_]+)%s*:%s*([^\n]+)", field_pos)
+        if not fstart then break end
+
+        -- Extract doc comment before this field
+        local field_absolute_pos = body_start + fstart
+        local field_doc = extract_doc_comment(source, field_absolute_pos)
+        local _, _, field_description = parse_annotations(field_doc)
+
+        -- Clean up the type (remove trailing comments and whitespace)
+        local clean_type = ftype:match("^%s*(.-)%s*$")
+        if clean_type:match("%-%-%s*.*$") then
+          clean_type = clean_type:gsub("%s*%-%-.*$", "")
+        end
+
+        table.insert(fields, {fname, clean_type, field_description or ""})
+        field_pos = fend + 1
+      end
+    end
+
     table.insert(doc.records, {
       name = rec_name as string,
       description = description,
-      fields = {},
+      fields = fields,
       line = line_num,
     })
   end
@@ -318,6 +398,10 @@ local function parse(source: string, file_path: string): ModuleDoc
   last_pos = 1
   for func_start, func_name in source:gmatch("()local%s+function%s+(Example[%w_]*)%s*%(") do
     update_line_num(func_start as integer)
+
+    -- Extract doc comment before this example (allow regular -- comments for examples)
+    local example_doc = extract_doc_comment(source, func_start as integer, true)
+    local _, _, example_description = parse_annotations(example_doc)
 
     -- Find the function body
     local body_start = source:find("%)", func_start as integer) + 1
@@ -389,6 +473,7 @@ local function parse(source: string, file_path: string): ModuleDoc
 
     table.insert(doc.examples, {
       name = func_name as string,
+      description = example_description,
       body = body,
       expected_output = expected,
       line = line_num,
@@ -425,6 +510,26 @@ local function render(doc: ModuleDoc): string
       table.insert(lines, "")
       if rec.description then
         table.insert(lines, rec.description)
+        table.insert(lines, "")
+      end
+
+      -- Show the full record definition if fields exist
+      if #rec.fields > 0 then
+        table.insert(lines, "```teal")
+        table.insert(lines, "local record " .. rec.name)
+        for _, field in ipairs(rec.fields) do
+          local field_name, field_type, field_desc = field[1], field[2], field[3]
+          -- Add field description as a comment above the field
+          if field_desc and field_desc ~= "" then
+            -- Split multi-line descriptions
+            for desc_line in field_desc:gmatch("[^\n]+") do
+              table.insert(lines, "  -- " .. desc_line)
+            end
+          end
+          table.insert(lines, "  " .. field_name .. ": " .. field_type)
+        end
+        table.insert(lines, "end")
+        table.insert(lines, "```")
         table.insert(lines, "")
       end
     end
@@ -500,10 +605,25 @@ local function render(doc: ModuleDoc): string
       end
       table.insert(lines, "### " .. title)
       table.insert(lines, "")
+
+      -- Add description if present
+      if example.description then
+        table.insert(lines, example.description)
+        table.insert(lines, "")
+      end
+
       table.insert(lines, "```teal")
 
-      -- Clean up the body for display
-      local body = example.body:gsub("^%s*\n", ""):gsub("\n%s*$", "")
+      -- Clean up the body for display and remove -- Output: section
+      local body = example.body
+      -- Remove the -- Output: comment block
+      local output_start = body:find("%-%-%s*Output:")
+      if output_start then
+        -- Remove everything from -- Output: onwards
+        body = body:sub(1, output_start - 1)
+      end
+      -- Clean up leading/trailing whitespace
+      body = body:gsub("^%s*\n", ""):gsub("\n%s*$", "")
       table.insert(lines, body)
 
       table.insert(lines, "```")
