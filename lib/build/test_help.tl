@@ -2,21 +2,7 @@
 -- Test the Makefile help system
 
 local cosmo = require("cosmo")
-
-local record HelpItem
-  type: string
-  name: string
-  description: string
-end
-
-local record HelpModule
-  parse_makefile: function(content: string): {HelpItem}
-  format_help: function(items: {HelpItem}): string
-  parse_phony_targets: function(content: string): {string:boolean}
-end
-
-local rawrequire = rawget(_G, "require") as function(string): HelpModule
-local help = rawrequire("make-help")
+local help = require("make-help")
 
 local function test_parse_multiline_comment()
   local content = [[
@@ -98,7 +84,7 @@ end
 test_parse_variables()
 
 local function test_format_help()
-  local items: {HelpItem} = {
+  local items: {help.Item} = {
     { type = "target", name = "test", description = "Run all tests" },
     { type = "target", name = "clean", description = "Remove build artifacts" },
     { type = "option", name = "only", description = "Filter by pattern" },

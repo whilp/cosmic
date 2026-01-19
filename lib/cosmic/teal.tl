@@ -1,28 +1,7 @@
 -- cosmic.teal: Teal compilation and type-checking for cosmic-lua
 -- Provides --compile and --check functionality
 
-local record TLError
-  filename: string
-  y: integer
-  x: integer
-  msg: string
-end
-
-local record TLResult
-  ast: any
-  syntax_errors: {TLError}
-  type_errors: {TLError}
-  warnings: {TLError}
-end
-
-local record TL
-  init_env: function(boolean): any
-  process_string: function(string, boolean, any, string): TLResult, string
-  generate: function(any, {string:any}): string
-end
-
-local rawrequire = rawget(_G, "require") as function(string): TL
-local tl = rawrequire("tl")
+local tl = require("tl")
 
 local record Issue
   file: string

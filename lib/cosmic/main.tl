@@ -3,8 +3,7 @@
 
 global warn: function(...: any)
 
-local rawrequire = rawget(_G, "require") as function(string): {string:function()}
-rawrequire("tl").loader()
+require("tl").loader()
 
 local getopt = require("cosmo.getopt")
 
