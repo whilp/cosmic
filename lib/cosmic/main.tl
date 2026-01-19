@@ -351,23 +351,12 @@ local function main(): integer, string
       return 1, "error: failed to copy executable" .. (wait_err and (": " .. wait_err) or "")
     end
 
-    -- Make it executable
-    handle, err = spawn({"chmod", "+x", output})
-    if not handle then
-      return 1, "error: failed to spawn chmod: " .. err
-    end
-    exitcode, wait_err = handle:wait()
-    if exitcode ~= 0 then
-      return 1, "error: failed to make output executable" .. (wait_err and (": " .. wait_err) or "")
-    end
-
     -- Use cosmo.zip to append files to the executable
     local zip = require("cosmo.zip")
     local appender, zip_err = zip.open(output, "a")
     if not appender then
       return 1, "error: failed to open zip for appending: " .. (zip_err or "unknown error")
     end
-    assert(appender, "appender should not be nil after check")
 
     -- Add each file to the zip
     for _, file_info in ipairs(files_to_embed) do
