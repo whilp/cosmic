@@ -42,24 +42,39 @@ local function get_default_include_dirs(): {string}
   }
 end
 
--- Compile a Teal file to Lua code
--- Returns: CompileResult with ok, code (if successful), errors (if failed)
-local function compile(input_path: string, opts: CompileOpts): CompileResult
-  opts = opts or {} as CompileOpts
+local record TlError
+  msg: string
+  filename: string
+  y: integer
+  x: integer
+end
 
-  -- Read input file
+local record TlResult
+  syntax_errors: {TlError}
+  type_errors: {TlError}
+  warnings: {TlError}
+  ast: any
+end
+
+local record ProcessResult
+  tl_result: TlResult
+  shebang: string
+  error: Issue
+end
+
+-- Process a Teal file: read, setup paths, run tl.process_string
+-- Returns ProcessResult with tl_result on success, or error on failure
+local function process_file(input_path: string, include_dirs: {string}): ProcessResult
   local f, open_err = io.open(input_path, "r")
   if not f then
     return {
-      ok = false,
-      code = nil,
-      errors = {{
+      error = {
         file = input_path,
         line = 0,
         column = 0,
         message = "cannot open file: " .. (open_err or "unknown error"),
         severity = "error",
-      }},
+      },
     }
   end
   local input = f:read("*a")
@@ -74,8 +89,7 @@ local function compile(input_path: string, opts: CompileOpts): CompileResult
     end
   end
 
-  -- Set up include directories for type definitions
-  local include_dirs = opts.include_dirs or get_default_include_dirs()
+  include_dirs = include_dirs or get_default_include_dirs()
 
   -- Add include dirs to package.path for teal's module resolution
   local saved_path = package.path
@@ -84,30 +98,28 @@ local function compile(input_path: string, opts: CompileOpts): CompileResult
     package.path = package.path .. ";" .. dir .. "/?/init.d.tl"
   end
 
-  -- Initialize teal environment
   local env = tl.init_env(false)
-
-  -- Process the file (lex, parse, type check)
   local result, proc_err = tl.process_string(input, false, env, input_path)
 
-  -- Restore package.path
   package.path = saved_path
 
   if not result then
     return {
-      ok = false,
-      code = nil,
-      errors = {{
+      error = {
         file = input_path,
         line = 0,
         column = 0,
         message = proc_err or "processing failed",
         severity = "error",
-      }},
+      },
     }
   end
 
-  -- Collect all errors (syntax + type)
+  return {tl_result = result as TlResult, shebang = shebang}
+end
+
+-- Collect errors from tl result (syntax_errors and type_errors)
+local function collect_errors(result: TlResult, input_path: string): {Issue}
   local errors: {Issue} = {}
 
   if result.syntax_errors then
@@ -138,31 +150,35 @@ local function compile(input_path: string, opts: CompileOpts): CompileResult
     end
   end
 
-  if #errors > 0 then
-    return {
-      ok = false,
-      code = nil,
-      errors = errors,
-    }
+  return errors
+end
+
+-- Compile a Teal file to Lua code
+-- Returns: CompileResult with ok, code (if successful), errors (if failed)
+local function compile(input_path: string, opts: CompileOpts): CompileResult
+  opts = opts or {} as CompileOpts
+
+  local proc = process_file(input_path, opts.include_dirs)
+  if proc.error then
+    return {ok = false, code = nil, errors = {proc.error}}
   end
 
-  -- Generate Lua code from the validated AST
+  local errors = collect_errors(proc.tl_result, input_path)
+  if #errors > 0 then
+    return {ok = false, code = nil, errors = errors}
+  end
+
   local gen_opts: {string:any} = {
     gen_target = opts.gen_target or "5.4",
     gen_compat = opts.gen_compat or "off",
   }
-  local lua_code = tl.generate(result.ast, gen_opts)
+  local lua_code = tl.generate(proc.tl_result.ast, gen_opts)
 
-  -- Prepend shebang if source had one
-  if shebang then
-    lua_code = shebang .. lua_code
+  if proc.shebang then
+    lua_code = proc.shebang .. lua_code
   end
 
-  return {
-    ok = true,
-    code = lua_code,
-    errors = {},
-  }
+  return {ok = true, code = lua_code, errors = {}}
 end
 
 -- Type-check a Teal file
@@ -170,63 +186,16 @@ end
 local function check(input_path: string, opts: CheckOpts): CheckResult
   opts = opts or {} as CheckOpts
 
-  -- Read input file
-  local f, open_err = io.open(input_path, "r")
-  if not f then
-    return {
-      ok = false,
-      warnings = {},
-      errors = {{
-        file = input_path,
-        line = 0,
-        column = 0,
-        message = "cannot open file: " .. (open_err or "unknown error"),
-        severity = "error",
-      }},
-    }
-  end
-  local input = f:read("*a")
-  f:close()
-
-  -- Set up include directories for type definitions
-  local include_dirs = opts.include_dirs or get_default_include_dirs()
-
-  -- Add include dirs to package.path for teal's module resolution
-  local saved_path = package.path
-  for _, dir in ipairs(include_dirs) do
-    package.path = package.path .. ";" .. dir .. "/?.d.tl"
-    package.path = package.path .. ";" .. dir .. "/?/init.d.tl"
+  local proc = process_file(input_path, opts.include_dirs)
+  if proc.error then
+    return {ok = false, warnings = {}, errors = {proc.error}}
   end
 
-  -- Initialize teal environment
-  local env = tl.init_env(false)
+  local errors = collect_errors(proc.tl_result, input_path)
 
-  -- Process the file (lex, parse, type check)
-  local result, proc_err = tl.process_string(input, false, env, input_path)
-
-  -- Restore package.path
-  package.path = saved_path
-
-  if not result then
-    return {
-      ok = false,
-      warnings = {},
-      errors = {{
-        file = input_path,
-        line = 0,
-        column = 0,
-        message = proc_err or "processing failed",
-        severity = "error",
-      }},
-    }
-  end
-
-  -- Collect warnings and errors
   local warnings: {Issue} = {}
-  local errors: {Issue} = {}
-
-  if result.warnings then
-    for _, w in ipairs(result.warnings) do
+  if proc.tl_result.warnings then
+    for _, w in ipairs(proc.tl_result.warnings) do
       if w.msg then
         table.insert(warnings, {
           file = w.filename or input_path,
@@ -239,39 +208,7 @@ local function check(input_path: string, opts: CheckOpts): CheckResult
     end
   end
 
-  if result.type_errors then
-    for _, e in ipairs(result.type_errors) do
-      if e.msg then
-        table.insert(errors, {
-          file = e.filename or input_path,
-          line = e.y or 0,
-          column = e.x or 0,
-          message = e.msg,
-          severity = "error",
-        })
-      end
-    end
-  end
-
-  if result.syntax_errors then
-    for _, e in ipairs(result.syntax_errors) do
-      if e.msg then
-        table.insert(errors, {
-          file = e.filename or input_path,
-          line = e.y or 0,
-          column = e.x or 0,
-          message = e.msg,
-          severity = "error",
-        })
-      end
-    end
-  end
-
-  return {
-    ok = #errors == 0,
-    warnings = warnings,
-    errors = errors,
-  }
+  return {ok = #errors == 0, warnings = warnings, errors = errors}
 end
 
 -- Format issues for human-readable output

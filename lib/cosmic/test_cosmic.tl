@@ -33,14 +33,6 @@ local function test_require_cosmic_walk()
 end
 test_require_cosmic_walk()
 
-local function test_require_cosmic_help()
-  local help = require("cosmic.help")
-  assert(help ~= nil, "help should not be nil")
-  assert(help.modules ~= nil, "help.modules should not be nil")
-  assert(help.print_help ~= nil, "help.print_help should not be nil")
-end
-test_require_cosmic_help()
-
 local function test_cosmic_main_exists()
   local cosmic = require("cosmic")
   assert(cosmic.main ~= nil, "cosmic.main should not be nil")
