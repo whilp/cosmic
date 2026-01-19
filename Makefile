@@ -40,7 +40,7 @@ include 3p/teal-types/cook.mk
 .PHONY: help
 ## Show this help message
 help: $(build_files) | $(bootstrap_cosmic)
-	@$(bootstrap_cosmic) $(o)/bin/make-help.lua $(MAKEFILE_LIST)
+	@$(bootstrap_cosmic) $(build_help) $(MAKEFILE_LIST)
 
 ## Filter targets by pattern (make test only='teal')
 filter-only = $(if $(only),$(foreach f,$1,$(if $(findstring $(only),$(f)),$(f))),$1)
@@ -91,7 +91,7 @@ fetched: $(all_fetched)
 $(o)/%/.fetched: .PLEDGE = stdio rpath wpath cpath inet dns
 $(o)/%/.fetched: .UNVEIL = rx:$(o)/bootstrap r:3p rwc:$(o) r:/etc/resolv.conf r:/etc/ssl
 $(o)/%/.fetched: $(o)/%/.versioned $(build_files) | $(bootstrap_cosmic)
-	@$(build_fetch) $$(readlink $<) $(platform) $@
+	@$(bootstrap_cosmic) -- $(build_fetch) $$(readlink $<) $(platform) $@
 
 # versions get staged: o/module/.staged -> o/staged/module/<ver>-<sha>
 .PHONY: staged
@@ -101,7 +101,7 @@ staged: $(all_staged)
 $(o)/%/.staged: .PLEDGE = stdio rpath wpath cpath proc exec
 $(o)/%/.staged: .UNVEIL = rx:$(o)/bootstrap r:3p rwc:$(o) rx:/usr/bin
 $(o)/%/.staged: $(o)/%/.fetched $(build_files)
-	@$(build_stage) $$(readlink $(o)/$*/.versioned) $(platform) $< $@
+	@$(bootstrap_cosmic) -- $(build_stage) $$(readlink $(o)/$*/.versioned) $(platform) $< $@
 
 all_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_tests)))
 all_tested := $(patsubst %,$(o)/%.test.got,$(all_tests))

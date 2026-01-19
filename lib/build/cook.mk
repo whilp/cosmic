@@ -1,19 +1,12 @@
 modules += build
-build_lua_dirs := $(o)/bin
-build_fetch := $(o)/bin/build-fetch.lua
-build_stage := $(o)/bin/build-stage.lua
-build_reporter := $(o)/bin/reporter.lua
-build_help := $(o)/bin/make-help.lua
+build_lua_dirs := $(o)/lib/build
+build_fetch := $(o)/lib/build/build-fetch.lua
+build_stage := $(o)/lib/build/build-stage.lua
+build_reporter := $(o)/lib/build/reporter.lua
+build_help := $(o)/lib/build/make-help.lua
 build_files := $(build_fetch) $(build_stage) $(build_reporter) $(build_help)
 build_tests := $(wildcard lib/build/test_*.tl)
 
-.PRECIOUS: $(build_files)
-
-# Build scripts: compile to o/bin/ and make executable
-$(build_files): $(o)/bin/%.lua: lib/build/%.tl | $(bootstrap_files)
-	@mkdir -p $(@D)
-	@$(bootstrap_cosmic) --compile $< > $@
-	@chmod +x $@
 reporter := $(bootstrap_cosmic) -- $(build_reporter)
 
 # test_reporter needs cosmic binary

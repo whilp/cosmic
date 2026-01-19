@@ -23,7 +23,8 @@ end
 
 local function run_reporter(...: string): integer, string, string
   local test_bin = os.getenv("TEST_BIN") or ""
-  local reporter = path.join(test_bin, "reporter.lua")
+  local test_o = os.getenv("TEST_O") or "o"
+  local reporter = path.join(test_o, "lib/build/reporter.lua")
   local spawn = require("cosmic.spawn").spawn
   local args: {string} = {path.join(test_bin, "cosmic"), "--", reporter}
   local varargs: {string} = {...}
