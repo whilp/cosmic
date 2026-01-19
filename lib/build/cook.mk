@@ -25,6 +25,7 @@ $(build_files): $(o)/bin/%.lua: lib/build/%.tl lib/cosmic/tl-gen.lua | $(bootstr
 	@chmod +x $@
 reporter := $(bootstrap_cosmic) -- $(build_reporter)
 update_runner := $(bootstrap_cosmic) -- $(build_check_update)
+test_runner := $(bootstrap_cosmic)
 
 # test_reporter needs cosmic binary and checker module
 $(o)/lib/build/test_reporter.tl.test.ok: $$(cosmic_bin) $$(checker_files)
