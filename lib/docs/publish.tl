@@ -1,6 +1,5 @@
 -- docs-publish: publish generated docs to a git branch
 local cosmo = require("cosmo")
-local path = require("cosmo.path")
 local unix = require("cosmo.unix")
 local spawn = require("cosmic.spawn")
 
@@ -21,55 +20,21 @@ local function run(argv: {string}): boolean, string
   return true
 end
 
-local function run_output(argv: {string}): string
-  local h = spawn(argv)
-  if not h then return nil end
-  local ok, out = h:read()
-  if ok then return out end
-  return nil
-end
-
-local function copy_recursive(src: string, dst: string): boolean, string
-  local stat = unix.stat(src)
-  if not stat then
-    return nil, "source not found: " .. src
-  end
-
-  if unix.S_ISDIR(stat:mode()) then
-    unix.makedirs(dst)
-    local dir = unix.opendir(src) as DirHandle
-    if not dir then
-      return nil, "failed to open " .. src
-    end
-    while true do
-      local name = dir:read()
-      if not name then break end
-      if name ~= "." and name ~= ".." then
-        local ok, err = copy_recursive(path.join(src, name), path.join(dst, name))
-        if not ok then return nil, err end
-      end
-    end
-  else
-    local f = io.open(src, "rb")
-    if not f then return nil, "failed to open " .. src end
-    local content = f:read("*a")
-    f:close()
-    unix.makedirs(path.dirname(dst))
-    local out = io.open(dst, "wb")
-    if not out then return nil, "failed to create " .. dst end
-    out:write(content)
-    out:close()
-  end
-  return true
-end
-
 local function main(source_sha: string, docs_dir: string, branch: string): boolean, string
   if not source_sha or not docs_dir or not branch then
     return nil, "usage: docs-publish <source_sha> <docs_dir> <branch>"
   end
 
+  -- copy docs to temp before switching branches (checkout will clear working dir)
+  local temp_dir = unix.mkdtemp("/tmp/docs-publish-XXXXXX")
+  local ok, err = run({"cp", "-r", docs_dir .. "/.", temp_dir})
+  if not ok then
+    unix.rmrf(temp_dir)
+    return nil, err
+  end
+
   -- configure git
-  local ok, err = run({"git", "config", "user.name", "github-actions[bot]"})
+  ok, err = run({"git", "config", "user.name", "github-actions[bot]"})
   if not ok then return nil, err end
   ok, err = run({"git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"})
   if not ok then return nil, err end
@@ -102,8 +67,9 @@ local function main(source_sha: string, docs_dir: string, branch: string): boole
     end
   end
 
-  -- copy docs
-  ok, err = copy_recursive(docs_dir, ".")
+  -- copy docs from temp
+  ok, err = run({"cp", "-r", temp_dir .. "/.", "."})
+  unix.rmrf(temp_dir)
   if not ok then return nil, err end
 
   -- write readme
