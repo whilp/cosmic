@@ -1,4 +1,4 @@
-#!/usr/bin/env run-test.lua
+#!/usr/bin/env cosmic
 -- Test the actual repo Makefile using pre-generated make outputs
 
 local path = require("cosmo.path")

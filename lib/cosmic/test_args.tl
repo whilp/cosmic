@@ -1,4 +1,4 @@
-#!/usr/bin/env run-test.lua
+#!/usr/bin/env cosmic
 -- test cosmic script argument passing (varargs and arg table)
 
 local unix = require("cosmo.unix")

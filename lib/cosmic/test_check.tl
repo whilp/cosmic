@@ -1,4 +1,4 @@
-#!/usr/bin/env run-test.lua
+#!/usr/bin/env cosmic
 -- test cosmic --check option
 
 local path = require("cosmo.path")

@@ -8,12 +8,8 @@ build_stage := $(o)/bin/build-stage.lua
 build_check_update := $(o)/bin/check-update.lua
 build_reporter := $(o)/bin/reporter.lua
 build_help := $(o)/bin/make-help.lua
-build_snap := $(o)/bin/test-snap.lua
-build_run_test := $(o)/bin/run-test.lua
-build_files := $(build_fetch) $(build_stage) $(build_check_update) $(build_reporter) $(build_help) $(build_snap) $(build_run_test)
-# Test files - .tl source, compiled .lua run by test rule
+build_files := $(build_fetch) $(build_stage) $(build_check_update) $(build_reporter) $(build_help)
 build_tests := $(wildcard lib/build/test_*.tl)
-build_snaps := $(wildcard lib/build/*.snap)
 
 .PRECIOUS: $(build_files)
 
@@ -26,10 +22,9 @@ $(build_files): $(o)/bin/%.lua: lib/build/%.tl lib/cosmic/tl-gen.lua | $(bootstr
 	@chmod +x $@
 reporter := $(bootstrap_cosmic) -- $(build_reporter)
 update_runner := $(bootstrap_cosmic) -- $(build_check_update)
-test_runner := $(bootstrap_cosmic) -- $(build_run_test)
 
 # test_reporter needs cosmic binary and checker module
-$(o)/lib/build/test_reporter.tl.test.ok: $$(cosmic_bin) $$(checker_files)
+$(o)/lib/build/test_reporter.tl.test.got: $$(cosmic_bin) $$(checker_files)
 
 # make-help snapshot: generate actual help output
 $(o)/lib/build/make-help.snap: Makefile $(build_help) | $(bootstrap_cosmic)
@@ -49,5 +44,5 @@ $(build_make_out)/database.out: Makefile $(wildcard */*.mk) $(wildcard */*/*.mk)
 
 build_make_outputs := $(build_make_out)/dry-run.out $(build_make_out)/database.out
 
-$(o)/lib/build/test_makefile.tl.test.ok: $(build_make_outputs)
-$(o)/lib/build/test_makefile.tl.test.ok: TEST_DIR := $(build_make_out)
+$(o)/lib/build/test_makefile.tl.test.got: $(build_make_outputs)
+$(o)/lib/build/test_makefile.tl.test.got: TEST_DIR := $(build_make_out)
