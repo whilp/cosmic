@@ -4,7 +4,7 @@
 local path = require("cosmo.path")
 local cosmo = require("cosmo")
 
-global TEST_DIR: string
+local TEST_DIR = os.getenv("TEST_DIR")
 
 local record MakeOutput
   output: string

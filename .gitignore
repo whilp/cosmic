@@ -27,3 +27,10 @@ Thumbs.db
 # Temporary files
 *.tmp
 .ape*
+
+# Test artifacts in root directory
+/*.lua
+!tlconfig.lua
+/checkfile
+/passthrough_*
+/target

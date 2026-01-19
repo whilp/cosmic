@@ -4,8 +4,7 @@ local path = require("cosmo.path")
 local spawn = require("cosmic.spawn")
 
 local lua_bin = path.join(os.getenv("TEST_BIN"), "cosmic")
-
-global TEST_TMPDIR: string
+local TEST_TMPDIR = os.getenv("TEST_TMPDIR")
 
 local function test_simple_command()
   local handle = spawn({lua_bin, "-e", "print('hello')"})
@@ -99,7 +98,6 @@ local function test_fd_passthrough_stdout()
     local f = io.open(%q, "w")
     f:write("written")
     f:close()
-    io.write("to stdout")
   ]], tmp_file)
 
   local handle = spawn({lua_bin, "-e", script}, {stdout = 1})
@@ -123,7 +121,6 @@ local function test_fd_passthrough_stderr()
     local f = io.open(%q, "w")
     f:write("written")
     f:close()
-    io.stderr:write("to stderr")
   ]], tmp_file)
 
   local handle = spawn({lua_bin, "-e", script}, {stderr = 2})

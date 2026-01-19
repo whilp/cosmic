@@ -33,8 +33,6 @@ local function print_help()
   print("  local ok, out = spawn({'ls', '-la'}):read()")
 end
 
-print_help()
-
 local record HelpModule
   modules: {ModuleInfo}
   print_help: function()
