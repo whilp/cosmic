@@ -21,6 +21,8 @@ local record Opts
   script_args: {integer:string}
   compile: string          -- Input file for --compile (outputs to stdout)
   check: string            -- Input file for --check
+  test: string             -- Input file for --test
+  test_args: {integer:string}  -- Arguments for test
 end
 
 -- Parse arguments using cosmo.getopt iterator API
@@ -37,6 +39,8 @@ local function parse_args(): Opts
     script_args = {},
     compile = nil,
     check = nil,
+    test = nil,
+    test_args = {},
   }
 
   local shortopts = "e:l:ivEWh::s:"
@@ -45,6 +49,7 @@ local function parse_args(): Opts
     { "skill", "required", "s" },
     { "compile", "required", nil },
     { "check", "required", nil },  -- Takes first file, remaining files via remaining()
+    { "test", "required", nil },   -- Takes test file, remaining args are test arguments
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -73,6 +78,7 @@ local function parse_args(): Opts
   -- Options that consume all remaining arguments (no script after them)
   local long_greedy: {string:boolean} = {
     ["skill"] = true,
+    ["test"] = true,
   }
 
   -- Find first non-option argument (script name) to know where to stop parsing
@@ -167,6 +173,11 @@ local function parse_args(): Opts
     elseif opt == "check" then
       opts.check = optarg
       return opts
+    elseif opt == "test" then
+      opts.test = optarg
+      -- Remaining args go to test
+      opts.test_args = parser:remaining() as {integer:string}
+      return opts
     end
   end
 
@@ -234,6 +245,7 @@ if opts.help then
     io.write("  --skill <name> [args]    run a skill module\n")
     io.write("  --compile <file.tl>      compile Teal file to Lua (stdout)\n")
     io.write("  --check <file.tl>        type-check a Teal file\n")
+    io.write("  --test <file> [args]     run a test file\n")
     io.write("  --help [module]          show help for cosmic or a module\n")
     io.write("\n")
     io.write("Standard lua options:\n")
@@ -298,6 +310,20 @@ if opts.check then
     os.exit(0)
   else
     os.exit(1)
+  end
+end
+
+-- Handle --test
+if opts.test then
+  local test = require("cosmic.test")
+  local result = test.run(opts.test, opts.test_args)
+
+  io.write(test.format_result(result))
+
+  if result.ok then
+    os.exit(0)
+  else
+    os.exit(1)  -- Exit 1 only for infrastructure errors
   end
 end
 
