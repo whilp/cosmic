@@ -24,6 +24,8 @@ local record Opts
   check: string            -- Input file for --check
   embed: {string}          -- Files to embed via --embed
   output: string           -- Output file for --embed (defaults to "cosmic")
+  example: string          -- Input file for --example (run examples)
+  doc: string              -- Input file for --doc (generate docs)
   error: string            -- Parse error message
 end
 
@@ -42,6 +44,8 @@ local function parse_args(): Opts
     check = nil,
     embed = {},
     output = nil,
+    example = nil,
+    doc = nil,
     error = nil,
   }
 
@@ -52,6 +56,8 @@ local function parse_args(): Opts
     { "check", "required", nil },  -- Takes first file, remaining files via remaining()
     { "embed", "required", nil },
     { "output", "required", nil },
+    { "example", "required", nil },
+    { "doc", "required", nil },
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -171,6 +177,12 @@ local function parse_args(): Opts
       opts.embed[#opts.embed + 1] = optarg
     elseif opt == "output" then
       opts.output = optarg
+    elseif opt == "example" then
+      opts.example = optarg
+      return opts
+    elseif opt == "doc" then
+      opts.doc = optarg
+      return opts
     end
   end
 
@@ -244,6 +256,8 @@ local function main(): integer, string
       io.write("  --check <file.tl>        type-check a Teal file\n")
       io.write("  --embed <file>           embed file(s) into cosmic (use multiple times)\n")
       io.write("  --output <file>          output file for --embed (default: cosmic)\n")
+      io.write("  --example <file.tl>      run Example_* functions, check output\n")
+      io.write("  --doc <file.tl>          generate markdown documentation\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
       io.write("\n")
       io.write("Standard lua options:\n")
@@ -368,6 +382,27 @@ local function main(): integer, string
 
     io.write("Successfully embedded " .. #opts.embed .. " file(s) into " .. output .. "\n")
     return 0
+  end
+
+  -- Handle --example
+  if opts.example then
+    local example = require("cosmic.example")
+    local result = example.run(opts.example)
+    io.write(example.format_results(opts.example, result) .. "\n")
+    return result.exit_code
+  end
+
+  -- Handle --doc
+  if opts.doc then
+    local doc = require("cosmic.doc")
+    local ok, output = doc.render_file(opts.doc)
+    if ok then
+      io.write(output)
+      return 0
+    else
+      io.stderr:write(output .. "\n")
+      return 1
+    end
   end
 
   -- Handle -W warnings: convert warnings to errors

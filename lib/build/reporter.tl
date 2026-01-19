@@ -156,7 +156,14 @@ local function main(...: string): integer, string
       local content = cosmo.Slurp(file)
       if content then
         local exit_code = tonumber(content:match("^(%d+)"))
-        local status_str = exit_code == 0 and "pass" or "fail"
+        local status_str: string
+        if exit_code == 0 then
+          status_str = "pass"
+        elseif exit_code == 2 then
+          status_str = "skip"
+        else
+          status_str = "fail"
+        end
         local base = string.gsub(file, "%.got$", "")
         local out_content = cosmo.Slurp(base .. ".out") or ""
         local err_content = cosmo.Slurp(base .. ".err") or ""
