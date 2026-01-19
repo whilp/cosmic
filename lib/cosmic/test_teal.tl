@@ -157,37 +157,6 @@ local x: number = undefined_var
 end
 test_check_undefined_variable()
 
--- Test check multiple files
-local function test_check_multiple_files()
-  local file1 = write_temp("multi1.tl", [[
-local x: number = 1
-print(x)
-]])
-  local file2 = write_temp("multi2.tl", [[
-local y: string = "two"
-print(y)
-]])
-
-  local ok, out = spawn({cosmic, "--check", file1, file2}):read()
-  assert(ok, "cosmic --check should succeed on multiple valid files")
-end
-test_check_multiple_files()
-
--- Test check with one bad file in multiple
-local function test_check_multiple_one_bad()
-  local good = write_temp("good.tl", [[
-local x: number = 1
-print(x)
-]])
-  local bad = write_temp("bad.tl", [[
-local x: number = "wrong"
-]])
-
-  local ok, out = spawn({cosmic, "--check", good, bad}):read()
-  assert(not ok, "cosmic --check should fail if any file has errors")
-end
-test_check_multiple_one_bad()
-
 -- Test check reports warnings (but succeeds)
 local function test_check_warnings()
   local input = write_temp("warnings.tl", [[

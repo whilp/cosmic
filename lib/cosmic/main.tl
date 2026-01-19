@@ -20,7 +20,7 @@ local record Opts
   script: string
   script_args: {integer:string}
   compile: string          -- Input file for --compile (outputs to stdout)
-  check: {string}          -- Input files for --check
+  check: string            -- Input file for --check
 end
 
 -- Parse arguments using cosmo.getopt iterator API
@@ -36,7 +36,7 @@ local function parse_args(): Opts
     script = nil,
     script_args = {},
     compile = nil,
-    check = {},
+    check = nil,
   }
 
   local shortopts = "e:l:ivEWh::s:"
@@ -73,7 +73,6 @@ local function parse_args(): Opts
   -- Options that consume all remaining arguments (no script after them)
   local long_greedy: {string:boolean} = {
     ["skill"] = true,
-    ["check"] = true,
   }
 
   -- Find first non-option argument (script name) to know where to stop parsing
@@ -166,14 +165,7 @@ local function parse_args(): Opts
       opts.compile = optarg
       return opts
     elseif opt == "check" then
-      -- First file is the required arg, additional files are remaining
-      opts.check[#opts.check + 1] = optarg
-      local remaining = parser:remaining()
-      if remaining then
-        for _, f in ipairs(remaining) do
-          opts.check[#opts.check + 1] = f
-        end
-      end
+      opts.check = optarg
       return opts
     end
   end
@@ -241,7 +233,7 @@ if opts.help then
     io.write("Cosmic options:\n")
     io.write("  --skill <name> [args]    run a skill module\n")
     io.write("  --compile <file.tl>      compile Teal file to Lua (stdout)\n")
-    io.write("  --check <file.tl>...     type-check Teal file(s)\n")
+    io.write("  --check <file.tl>        type-check a Teal file\n")
     io.write("  --help [module]          show help for cosmic or a module\n")
     io.write("\n")
     io.write("Standard lua options:\n")
@@ -290,34 +282,19 @@ if opts.compile then
 end
 
 -- Handle --check
-if #opts.check > 0 then
+if opts.check then
   local teal = require("cosmic.teal")
-  local all_ok = true
-  local all_errors: {teal.Issue} = {}
-  local all_warnings: {teal.Issue} = {}
+  local result = teal.check(opts.check)
 
-  for _, file in ipairs(opts.check) do
-    local result = teal.check(file)
-    if not result.ok then
-      all_ok = false
-    end
-    for _, e in ipairs(result.errors) do
-      all_errors[#all_errors + 1] = e
-    end
-    for _, w in ipairs(result.warnings) do
-      all_warnings[#all_warnings + 1] = w
-    end
+  if #result.warnings > 0 then
+    io.stderr:write(teal.format_issues(result.warnings) .. "\n")
+  end
+  if #result.errors > 0 then
+    io.stderr:write(teal.format_issues(result.errors) .. "\n")
   end
 
-  if #all_warnings > 0 then
-    io.stderr:write(teal.format_issues(all_warnings) .. "\n")
-  end
-  if #all_errors > 0 then
-    io.stderr:write(teal.format_issues(all_errors) .. "\n")
-  end
-
-  if all_ok then
-    io.write("Type check passed for " .. #opts.check .. " file(s)\n")
+  if result.ok then
+    io.write("Type check passed\n")
     os.exit(0)
   else
     os.exit(1)
