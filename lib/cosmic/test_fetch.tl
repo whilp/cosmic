@@ -1,4 +1,4 @@
-#!/usr/bin/env run-test.lua
+#!/usr/bin/env cosmic-lua
 local fetch = require("cosmic.fetch")
 
 local function test_module_loads()
