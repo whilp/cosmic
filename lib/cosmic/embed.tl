@@ -11,10 +11,13 @@ local record EmbedResult
   file_count: integer
 end
 
--- Embed files into a copy of the cosmic executable
--- files: list of file paths to embed
--- output: output path (defaults to "cosmic")
--- exe_path: path to the executable to copy (defaults to arg[-1])
+--- Embed files into a copy of the cosmic executable.
+--- Creates a new executable with files appended as a zip archive.
+--- The original executable is copied and files are added to the end as a zip.
+--- @param files {string} List of file paths to embed
+--- @param output string Output path for the new executable (defaults to "cosmic")
+--- @param exe_path string Path to the executable to copy (defaults to arg[-1])
+--- @return EmbedResult Result with ok status, message, and file count
 local function run(files: {string}, output?: string, exe_path?: string): EmbedResult
   output = output or "cosmic"
   exe_path = exe_path or arg[-1]
