@@ -185,6 +185,34 @@ bootstrap: $(bootstrap_files)
 ## Build cosmic binary
 build: cosmic
 
+# Example testing - run Example_* functions in .tl files
+all_example_srcs := $(call filter-only,$(foreach m,$(modules),$($(m)_tl_srcs)))
+all_examples := $(patsubst %.tl,$(o)/%.tl.example.got,$(all_example_srcs))
+
+.PHONY: example
+## Run all example tests
+example: $(o)/example-summary.txt
+
+$(o)/example-summary.txt: $(all_examples) | $(build_reporter)
+	@$(reporter) --dir $(o) $^ | tee $@
+
+$(o)/%.tl.example.got: .PLEDGE = stdio rpath wpath cpath proc exec
+$(o)/%.tl.example.got: .UNVEIL = rx:$(o)/bootstrap r:lib r:3p rwc:$(o) rwc:$(TMP) rx:/usr rx:/proc r:/etc r:/dev/null
+$(o)/%.tl.example.got: %.tl $(cosmic_bin) | $(bootstrap_files)
+	@mkdir -p $(@D)
+	@set +e; $(cosmic_bin) --example $< > $(basename $@).out 2> $(basename $@).err; echo $$? > $@
+
+# Documentation generation - render .tl files as markdown
+all_docs := $(patsubst %.tl,$(o)/%.md,$(all_example_srcs))
+
+.PHONY: doc
+## Generate documentation from source
+doc: $(all_docs)
+
+$(o)/%.md: %.tl $(cosmic_bin) | $(bootstrap_files)
+	@mkdir -p $(@D)
+	@$(cosmic_bin) --doc $< > $@
+
 ci_stages := teal test build
 
 .PHONY: ci
