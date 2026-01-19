@@ -142,11 +142,7 @@ $(o)/%/.zip: $(o)/%/.staged $$(cosmos_staged)
 	@rm -rf $(@D)/.zip-staging
 
 all_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_tests)))
-all_release_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_release_test) $($(x)_release_tests)))
-all_declared_tests := $(all_tests) $(all_release_tests)
 all_tested := $(patsubst %,o/%.test.got,$(all_tests))
-all_buns := $(call filter-only,$(foreach x,$(modules),$($(x)_buns)))
-all_bunned := $(patsubst %,$(o)/%.bun.ok,$(all_buns))
 
 ## Run all tests (incremental)
 test: $(o)/test-summary.txt
@@ -212,12 +208,6 @@ $(o)/teal-summary.txt: $(all_teals) | $(build_reporter)
 $(o)/%.teal.got: $(o)/% $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	-@$(cosmic_bin) --check $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
-
-## Run bun syntax checker on .gs/.js files
-bun: $(o)/bun-summary.txt
-
-$(o)/bun-summary.txt: $(all_bunned) | $(build_reporter)
-	@$(reporter) --dir $(o) $^ | tee $@
 
 .PHONY: clean
 ## Remove all build artifacts
