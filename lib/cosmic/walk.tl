@@ -110,8 +110,16 @@ local function collect_all(dir: string, base?: string, files?: {string:FileInfo}
   return files
 end
 
-return {
+local record WalkModule
+  walk: function<T>(dir: string, visitor: Visitor, ctx?: T): T
+  collect: function(dir: string, pattern: string): {string}
+  collect_all: function(dir: string, base?: string, files?: {string:FileInfo}): {string:FileInfo}
+end
+
+local M: WalkModule = {
   walk = walk,
   collect = collect,
   collect_all = collect_all,
 }
+
+return M
