@@ -57,6 +57,12 @@ end
 
 ## Functions
 
+### spawn
+
+```teal
+function spawn(argv: {string}, opts?: SpawnOpts): SpawnHandle, string
+```
+
 ### pipe:write
 
 ```teal

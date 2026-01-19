@@ -94,3 +94,58 @@ local record DocModule
   render_file: function(file_path: string): boolean, string
 end
 ```
+
+## Functions
+
+### parse
+
+```teal
+function parse(source: string, file_path: string): ModuleDoc
+```
+
+ Parse a .tl file and extract documentation.
+ Extracts module docs, records, functions, and examples from source code.
+
+**Parameters:**
+
+- `source` (string) - The source code to parse
+- `file_path` (string) - Path to the file being parsed
+
+**Returns:**
+
+- ModuleDoc - Complete documentation for the module
+
+### render
+
+```teal
+function render(doc: ModuleDoc): string
+```
+
+ Render documentation as markdown.
+ Converts parsed documentation into formatted markdown with sections for types, functions, and examples.
+
+**Parameters:**
+
+- `doc` (ModuleDoc) - The documentation to render
+
+**Returns:**
+
+- string - Formatted markdown documentation
+
+### render_file
+
+```teal
+function render_file(file_path: string): boolean, string
+```
+
+ Main entry point: parse file and render markdown.
+ Reads a Teal file, extracts documentation, and renders it as markdown.
+
+**Parameters:**
+
+- `file_path` (string) - Path to the Teal file to document
+
+**Returns:**
+
+- boolean - Success status
+- string - Markdown documentation on success, error message on failure

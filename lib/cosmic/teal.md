@@ -114,3 +114,71 @@ local record TealModule
   get_default_include_dirs: function(): {string}
 end
 ```
+
+## Functions
+
+### get_default_include_dirs
+
+```teal
+function get_default_include_dirs(): {string}
+```
+
+ Get default include directories for cosmic type definitions.
+ Returns paths to bundled and local type definition directories.
+
+**Returns:**
+
+- {string} - List of default include directory paths
+
+### compile
+
+```teal
+function compile(input_path: string, opts: CompileOpts): CompileResult
+```
+
+ Compile a Teal file to Lua code.
+ Uses lax mode for permissive compilation. Preserves shebang if present.
+
+**Parameters:**
+
+- `input_path` (string) - Path to the Teal file to compile
+- `opts` (CompileOpts) - Compilation options (include_dirs, gen_target, gen_compat)
+
+**Returns:**
+
+- CompileResult - Result with ok status, generated Lua code, and any errors
+
+### check
+
+```teal
+function check(input_path: string, opts: CheckOpts): CheckResult
+```
+
+ Type-check a Teal file.
+ Uses strict mode for thorough type checking. Collects errors and warnings.
+
+**Parameters:**
+
+- `input_path` (string) - Path to the Teal file to check
+- `opts` (CheckOpts) - Type-checking options (include_dirs)
+
+**Returns:**
+
+- CheckResult - Result with ok status, warnings, and errors
+
+### format_issues
+
+```teal
+function format_issues(issues: {Issue}): string
+```
+
+ Format issues for human-readable output.
+ Creates formatted strings like "file.tl:10:5: error: message".
+
+**Parameters:**
+
+- `issues` ({Issue}) - List of issues to format
+
+**Returns:**
+
+- string - Formatted issues, one per line
