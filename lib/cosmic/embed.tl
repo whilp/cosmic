@@ -1,9 +1,10 @@
--- cosmic.embed: embed files into cosmic executable
--- Creates a copy of the cosmic executable with files appended as a zip archive
+--- Embed files into cosmic executable.
+--- Creates a copy of the cosmic executable with files appended as a zip archive.
 
 local cosmo = require("cosmo")
 local zip = require("cosmo.zip")
 
+--- Result returned from embed operation.
 local record EmbedResult
   ok: boolean
   message: string

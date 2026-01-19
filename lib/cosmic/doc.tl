@@ -1,4 +1,5 @@
--- cosmic.doc: Extract documentation from .tl files and render as markdown
+--- Extract documentation from Teal files and render as markdown.
+--- Parses doc comments, records, functions, and examples from .tl files.
 
 local record Param
   name: string

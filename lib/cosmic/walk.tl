@@ -1,4 +1,5 @@
--- cosmic.walk: directory tree walking utilities
+--- Directory tree walking utilities.
+--- Recursively traverse directories with visitor pattern or glob matching.
 local unix = require("cosmo.unix")
 local path = require("cosmo.path")
 
