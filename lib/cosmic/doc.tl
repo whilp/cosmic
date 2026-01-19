@@ -206,6 +206,16 @@ local function parse(source: string, file_path: string): ModuleDoc
   for func_start, is_local, func_name in source:gmatch("()(local%s+)function%s+([%w_:]+)%s*%(") do
     update_line_num(func_start as integer)
 
+    -- Skip if this is inside a comment
+    local line_start = func_start as integer
+    while line_start > 1 and source:sub(line_start - 1, line_start - 1) ~= "\n" do
+      line_start = line_start - 1
+    end
+    local line_prefix = source:sub(line_start, (func_start as integer) - 1)
+    if line_prefix:match("^%s*%-%-") then
+      goto continue_local_comment
+    end
+
     -- Skip Example_* functions (handled separately)
     if not (func_name as string):match("^Example") then
       -- Find the signature: from ( to the end of the line or to the function body
@@ -239,11 +249,6 @@ local function parse(source: string, file_path: string): ModuleDoc
 
       local signature = source:sub(sig_start, sig_end)
 
-      -- Skip malformed signatures (should not contain words like "everything", "until", etc)
-      if signature:match("%s+everything%s+") or signature:match("%s+until%s+") then
-        goto continue_local
-      end
-
       local func_doc = extract_doc_comment(source, func_start as integer)
       local params, returns, description = parse_annotations(func_doc)
 
@@ -256,14 +261,24 @@ local function parse(source: string, file_path: string): ModuleDoc
         line = line_num,
         is_local = is_local ~= nil,
       })
-      ::continue_local::
     end
+    ::continue_local_comment::
   end
 
   -- Also find non-local functions
   line_num = 1
   last_pos = 1
   for func_start, func_name in source:gmatch("()function%s+([%w_:]+)%s*%(") do
+    -- Skip if this is inside a comment
+    local line_start = func_start as integer
+    while line_start > 1 and source:sub(line_start - 1, line_start - 1) ~= "\n" do
+      line_start = line_start - 1
+    end
+    local line_prefix = source:sub(line_start, (func_start as integer) - 1)
+    if line_prefix:match("^%s*%-%-") then
+      goto continue_nonlocal_comment
+    end
+
     -- Skip if this is a "local function" or a function type annotation in a record
     local before = source:sub(math.max(1, (func_start as integer) - 20), (func_start as integer) - 1)
     if not before:match("local%s*$") and not before:match(":%s*$") then
@@ -301,11 +316,6 @@ local function parse(source: string, file_path: string): ModuleDoc
 
         local signature = source:sub(sig_start, sig_end)
 
-        -- Skip malformed signatures (should not contain words like "everything", "until", etc)
-        if signature:match("%s+everything%s+") or signature:match("%s+until%s+") then
-          goto continue_nonlocal
-        end
-
         local func_doc = extract_doc_comment(source, func_start as integer)
         local params, returns, description = parse_annotations(func_doc)
 
@@ -318,9 +328,9 @@ local function parse(source: string, file_path: string): ModuleDoc
           line = line_num,
           is_local = false,
         })
-        ::continue_nonlocal::
       end
     end
+    ::continue_nonlocal_comment::
   end
 
   -- Find record definitions
