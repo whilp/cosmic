@@ -1,0 +1,29 @@
+# Build outputs
+o/
+dist/
+results/
+
+# Third-party build artifacts
+3p/*/digest
+3p/*/fetch
+
+# Generated binaries (allow specific scripts)
+bin/
+!bin/cosmic
+!bin/make
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+.ape*
