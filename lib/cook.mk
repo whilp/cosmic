@@ -1,4 +1,5 @@
 modules += lib
+lib_lua_dirs := lib
 
 # type declaration files for teal compilation
 types_files := $(wildcard lib/types/*.d.tl lib/types/*/*.d.tl lib/types/*/*/*.d.tl)

@@ -1,4 +1,5 @@
 modules += build
+build_lua_dirs := $(o)/bin
 build_fetch := $(o)/bin/build-fetch.lua
 build_stage := $(o)/bin/build-stage.lua
 build_reporter := $(o)/bin/reporter.lua

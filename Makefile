@@ -129,9 +129,9 @@ export TEST_O := $(o)
 export TEST_PLATFORM := $(platform)
 export TEST_BIN := $(o)/bin
 export TEST_TMPDIR := $(TMP)
-# LUA_PATH: output dirs first, then source dirs
+# LUA_PATH: aggregate _lua_dirs from modules
 space := $(subst ,, )
-lua_path_dirs := $(o)/bin $(o)/lib lib
+lua_path_dirs := $(foreach m,$(modules),$($(m)_lua_dirs))
 export LUA_PATH := $(subst $(space),;,$(foreach d,$(lua_path_dirs),$(CURDIR)/$(d)/?.lua $(CURDIR)/$(d)/?/init.lua));;
 export NO_COLOR := 1
 
