@@ -306,69 +306,10 @@ local function main(): integer, string
 
   -- Handle --embed
   if #opts.embed > 0 then
-    local output = opts.output or "cosmic"
-    local current_exe = arg[-1]
-
-    if not current_exe then
-      return 1, "error: could not determine current executable path"
-    end
-
-    -- Check if all input files exist and read their contents
-    local record FileToEmbed
-      path: string
-      content: string
-      stored_name: string
-    end
-    local files_to_embed: {FileToEmbed} = {}
-    for _, file in ipairs(opts.embed) do
-      local f, open_err = io.open(file, "rb")
-      if not f then
-        return 1, "error: cannot open file '" .. file .. "': " .. (open_err or "unknown error")
-      end
-      local content = f:read("*a")
-      f:close()
-
-      -- Determine stored name in zip
-      -- Strip leading / for absolute paths to make them relative
-      local stored_name = file:gsub("^/+", "")
-
-      files_to_embed[#files_to_embed + 1] = {
-        path = file,
-        content = content,
-        stored_name = stored_name,
-      }
-    end
-
-    -- Copy the executable to output
-    local cosmo = require("cosmo")
-    local exe_data = cosmo.Slurp(current_exe)
-    if not exe_data then
-      return 1, "error: cannot read executable '" .. current_exe .. "'"
-    end
-    if not cosmo.Barf(output, exe_data, tonumber("755", 8)) then
-      return 1, "error: cannot write to '" .. output .. "'"
-    end
-
-    -- Use cosmo.zip to append files to the executable
-    local zip = require("cosmo.zip")
-    local appender, zip_err = zip.open(output, "a")
-    if not appender then
-      return 1, "error: failed to open zip for appending: " .. (zip_err or "unknown error")
-    end
-
-    -- Add each file to the zip
-    for _, file_info in ipairs(files_to_embed) do
-      local ok, add_err = appender:add(file_info.stored_name, file_info.content)
-      if not ok then
-        appender:close()
-        return 1, "error: failed to add '" .. file_info.path .. "' to zip: " .. (add_err or "unknown error")
-      end
-    end
-
-    appender:close()
-
-    io.write("Successfully embedded " .. #opts.embed .. " file(s) into " .. output .. "\n")
-    return 0
+    local embed = require("cosmic.embed")
+    local result = embed.run(opts.embed, opts.output)
+    io.write(result.message .. "\n")
+    return result.ok and 0 or 1
   end
 
   -- Handle --example
