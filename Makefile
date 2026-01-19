@@ -131,7 +131,7 @@ export TEST_BIN := $(o)/bin
 export TEST_TMPDIR := $(TMP)
 # LUA_PATH: output dirs first, then source dirs
 space := $(subst ,, )
-lua_path_dirs := $(o)/bin $(o)/teal/lib $(o)/lib lib
+lua_path_dirs := $(o)/bin $(o)/lib lib
 export LUA_PATH := $(subst $(space),;,$(foreach d,$(lua_path_dirs),$(CURDIR)/$(d)/?.lua $(CURDIR)/$(d)/?/init.lua));;
 export NO_COLOR := 1
 
