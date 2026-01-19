@@ -1,0 +1,294 @@
+COSMIC.SPAWN - Process Spawning Utilities
+
+VERSION
+  0.1.0
+
+DESCRIPTION
+  Provides a typed interface for spawning subprocesses with automatic pipe
+  management. Built on cosmo.unix primitives with safe abstractions for
+  stdin/stdout/stderr handling.
+
+  Features:
+  - Automatic command resolution via PATH
+  - Pipe management with typed handles
+  - Optional stdin/stdout/stderr capture or passthrough
+  - Custom environment variable support
+  - Type-safe API with Teal integration
+
+SYNOPSIS
+  local spawn = require("cosmic.spawn")
+  local handle, err = spawn(argv, opts?)
+  if not handle then
+    error("Spawn failed: " .. err)
+  end
+
+TYPES
+
+  Pipe
+    File descriptor wrapper with read/write methods.
+
+    Fields:
+      fd        number          File descriptor
+
+    Methods:
+      :write(data)              Write string to pipe, returns bytes written
+      :read(size?)              Read from pipe (nil = read all)
+      :close()                  Close the pipe
+
+  SpawnHandle
+    Handle for a spawned process.
+
+    Fields:
+      pid       number          Process ID
+      stdin     Pipe            Standard input pipe (writable)
+      stdout    Pipe            Standard output pipe (readable)
+      stderr    Pipe            Standard error pipe (readable)
+
+    Methods:
+      :wait()                   Wait for process to complete
+      :read(size?)              Read stdout and wait for completion
+
+  SpawnOpts
+    Configuration options for spawning processes.
+
+    Fields:
+      stdin     string|number   Input data (string) or file descriptor (number)
+      stdout    number          Output file descriptor (default: create pipe)
+      stderr    number          Error file descriptor (default: create pipe)
+      env       {string}        Environment variables (default: inherit)
+
+FUNCTIONS
+
+  spawn(argv, opts?) -> SpawnHandle, string
+
+    Spawns a subprocess with the given command and arguments.
+
+    If argv[1] is not an absolute path, the command is resolved via PATH
+    using unix.commandv(). Creates pipes for stdin/stdout/stderr unless
+    file descriptors are provided in opts.
+
+    Parameters:
+      argv      {string}        Command and arguments (argv[1] is command)
+      opts      SpawnOpts?      Optional configuration
+
+    Returns:
+      handle    SpawnHandle     Process handle with pid and pipes
+      error     string          Error message if spawn failed
+
+    Errors:
+      Returns nil, "command not found: <cmd>" if command not in PATH
+      Returns nil, "fork failed" if unable to create process
+
+  SpawnHandle:wait() -> number, string
+
+    Waits for the process to complete. Closes stdin and reads all data
+    from stdout/stderr to avoid SIGPIPE. Blocks until process exits.
+
+    Returns:
+      code      number          Exit code (0-255) if normal exit
+      error     string          Error message if abnormal termination
+
+    Note: Always reads stdout/stderr buffers before waiting to prevent
+          deadlock when child process blocks on write.
+
+  SpawnHandle:read(size?) -> boolean|string, string, number
+
+    Reads from stdout and waits for process completion. If stdout was not
+    captured (opts.stdout = fd), returns error.
+
+    Parameters:
+      size      number?         Bytes to read (nil = read all and wait)
+
+    Returns:
+      If size is nil:
+        ok      boolean         true if exit code was 0
+        output  string          Contents of stdout
+        code    number          Exit code
+
+      If size is number:
+        output  string          Chunk of data from stdout (may be empty)
+
+    Errors:
+      Returns nil, "stdout not captured" if opts.stdout was a file descriptor
+
+EXAMPLES
+
+  Basic command execution:
+
+    local spawn = require("cosmic.spawn")
+
+    local handle, err = spawn({"git", "status"})
+    if not handle then
+      error("Failed to spawn: " .. err)
+    end
+
+    local ok, output, code = handle:read()
+    if not ok then
+      error("Command failed with exit code: " .. code)
+    end
+    print(output)
+
+  Passing input to command:
+
+    local handle = spawn({"grep", "error"}, {
+      stdin = "line 1\nerror on line 2\nline 3\n"
+    })
+    local ok, output = handle:read()
+    print(output)  -- "error on line 2\n"
+
+  Streaming output (don't capture):
+
+    -- Output goes directly to terminal
+    local handle = spawn({"npm", "install"}, {
+      stdout = 1,  -- Inherit stdout
+      stderr = 2   -- Inherit stderr
+    })
+    local code = handle:wait()
+    if code ~= 0 then
+      error("npm install failed with code: " .. code)
+    end
+
+  Custom environment:
+
+    local handle = spawn({"env"}, {
+      env = {
+        "PATH=/usr/bin:/bin",
+        "HOME=/tmp",
+        "USER=testuser"
+      }
+    })
+    local ok, output = handle:read()
+    print(output)
+
+  Reading output incrementally:
+
+    local handle = spawn({"tail", "-f", "logfile"})
+
+    -- Read in chunks
+    while true do
+      local chunk = handle.stdout:read(1024)
+      if not chunk or chunk == "" then
+        break
+      end
+      io.write(chunk)
+      io.flush()
+    end
+
+    handle:wait()
+
+  Piping between commands:
+
+    local unix = require("cosmo.unix")
+
+    -- Create pipe for communication
+    local read_fd, write_fd = unix.pipe()
+
+    -- First command writes to pipe
+    local first = spawn({"echo", "hello world"}, {
+      stdout = write_fd
+    })
+
+    -- Second command reads from pipe
+    local second = spawn({"wc", "-w"}, {
+      stdin = read_fd
+    })
+
+    -- Close our copies of the pipe
+    unix.close(read_fd)
+    unix.close(write_fd)
+
+    -- Wait for both
+    first:wait()
+    local ok, output = second:read()
+    print(output)  -- "2\n"
+
+  Error handling:
+
+    -- Command not found
+    local handle, err = spawn({"nonexistent-command"})
+    if not handle then
+      print("Error:", err)  -- "command not found: nonexistent-command"
+      return
+    end
+
+    -- Command exits with non-zero
+    local handle = spawn({"false"})
+    local ok, output, code = handle:read()
+    if not ok then
+      print("Command failed with exit code:", code)  -- 1
+    end
+
+  Using as callable module:
+
+    -- Module implements __call metamethod
+    local spawn = require("cosmic.spawn")
+
+    -- These are equivalent:
+    local h1 = spawn({"echo", "test"})
+    local h2 = spawn.spawn({"echo", "test"})
+
+NOTES
+
+  - The spawn function always closes unused pipe ends in both parent and
+    child processes to prevent file descriptor leaks.
+
+  - When opts.stdin is a string, it's written to stdin and the pipe is
+    closed before returning. For large inputs, consider using a file
+    descriptor instead.
+
+  - The :wait() method internally reads all data from stdout/stderr before
+    calling unix.wait() to prevent the child process from blocking on a
+    full pipe buffer.
+
+  - For long-running processes with large output, read incrementally using
+    handle.stdout:read(chunk_size) rather than handle:read() to avoid
+    loading all output into memory.
+
+  - Signals are not handled automatically. To terminate a subprocess, use
+    unix.kill(handle.pid, unix.SIGTERM).
+
+COMMON PATTERNS
+
+  Command with timeout (requires fork):
+
+    local unix = require("cosmo.unix")
+
+    local pid = unix.fork()
+    if pid == 0 then
+      -- Child: run command
+      local handle = spawn({"sleep", "100"})
+      handle:wait()
+      unix.exit(0)
+    end
+
+    -- Parent: wait with timeout
+    unix.nanosleep(5, 0)  -- Wait 5 seconds
+    unix.kill(pid, unix.SIGTERM)
+    unix.wait(pid)
+
+  Parallel execution:
+
+    local handles = {}
+    for _, cmd in ipairs({{"job1"}, {"job2"}, {"job3"}}) do
+      local h = spawn(cmd)
+      table.insert(handles, h)
+    end
+
+    for _, h in ipairs(handles) do
+      local ok, output, code = h:read()
+      print("Exit code:", code)
+    end
+
+SEE ALSO
+  cosmo.unix          Low-level Unix system calls
+  cosmo.unix.fork()   Fork process
+  cosmo.unix.execve() Execute program
+  cosmo.unix.pipe()   Create pipe
+  cosmo.unix.wait()   Wait for child process
+
+SOURCE
+  /zip/.lua/cosmic/spawn.lua
+  lib/cosmic/spawn.tl
+
+TYPE DEFINITIONS
+  lib/types/cosmo/unix.d.tl

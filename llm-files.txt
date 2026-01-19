@@ -1,0 +1,76 @@
+> Key source files for cosmic-lua
+
+## Core Library Modules
+
+lib/cosmic/spawn.tl: Process spawning with automatic pipe management
+lib/cosmic/fetch.tl: HTTP fetching with retry logic and error preservation
+lib/cosmic/walk.tl: Directory tree traversal with pattern matching
+lib/cosmic/teal.tl: Teal compiler integration for type checking and compilation
+lib/cosmic/init.tl: Main entry point helper for scripts
+lib/cosmic/main.tl: CLI argument parsing and command dispatch
+lib/cosmic/docs.tl: Access to bundled documentation (prototype)
+
+## Type Definitions
+
+lib/types/cosmo.d.tl: Type definitions for base cosmo APIs (Fetch, Slurp, Barf, etc.)
+lib/types/cosmo/unix.d.tl: Unix system call types (fork, exec, pipe, stat, etc.)
+lib/types/cosmo/path.d.tl: Path manipulation functions
+lib/types/cosmo/getopt.d.tl: Command-line option parsing
+lib/types/cosmo/lsqlite3.d.tl: SQLite database bindings
+lib/types/tl.d.tl: Teal compiler API types
+lib/types/make-help.d.tl: Build system help generation
+
+## Test Files
+
+lib/cosmic/test_spawn.tl: Tests for process spawning
+lib/cosmic/test_fetch.tl: Tests for HTTP client
+lib/cosmic/test_walk.tl: Tests for directory walking
+lib/cosmic/test_compile.tl: Tests for Teal compilation
+lib/cosmic/test_check.tl: Tests for Teal type checking
+lib/cosmic/test_cosmic.tl: General cosmic library tests
+lib/cosmic/test_args.tl: Tests for CLI argument parsing
+lib/cosmic/test_binary.tl: Tests for binary functionality
+
+## Build System
+
+Makefile: Main build orchestration with module system and test infrastructure
+cook.mk: Bootstrap module definitions
+tlconfig.lua: Teal compiler configuration
+lib/build/build-fetch.tl: Dependency fetching with version verification
+lib/build/build-stage.tl: Dependency extraction and staging
+lib/build/reporter.tl: Test result formatting and reporting
+
+## Documentation
+
+llm.txt: Agent-optimized comprehensive API documentation
+docs/DOCUMENTATION_STRATEGY.md: Documentation generation and delivery strategy
+docs/BUNDLED_DOCUMENTATION_DESIGN.md: Design for embedded documentation access
+docs/README.md: Documentation system overview
+docs/modules/cosmic.spawn.txt: Example module documentation (man page format)
+README.md: Project overview and getting started guide
+
+## Third-Party Dependencies
+
+3p/cosmos/cook.mk: Cosmopolitan Lua base (version 2026.01.18)
+3p/tl/cook.mk: Teal compiler (version 0.24.8)
+3p/teal-types/cook.mk: Teal standard library type definitions
+
+## CI/CD
+
+.github/workflows/pr.yml: Pull request validation workflow
+.github/workflows/release.yml: Release build and publishing workflow
+
+## Entry Points
+
+bin/cosmic: Shell wrapper that downloads and executes cosmic-lua binary
+
+## Key Patterns and Concepts
+
+- **Module Pattern**: All modules export record types with _VERSION and _DESCRIPTION
+- **Callable Modules**: Some modules implement __call metamethod (e.g., spawn)
+- **Result Records**: Functions return structured records with ok/error fields
+- **Generic Visitors**: Directory walking uses type-generic visitor pattern
+- **Cook Module System**: Build system with declarative module dependencies
+- **APE Format**: Single Actually Portable Executable with embedded ZIP
+- **Teal Integration**: Full type checking at build time and runtime
+- **Landlock Sandboxing**: Compile and test with restricted permissions
