@@ -205,19 +205,6 @@ $(o)/check-summary.txt: $(all_checks) | $(build_reporter)
 ## Build cosmic binary
 build: cosmic
 
-.PHONY: release
-## Create release artifacts (CI only)
-release:
-	@mkdir -p release
-	@cp artifacts/cosmic-lua/cosmic release/cosmic-lua
-	@chmod +x release/cosmic-lua
-	@tag="$$(date -u +%Y-%m-%d)-$${GITHUB_SHA::7}"; \
-	(cd release && sha256sum cosmic-lua > SHA256SUMS && cat SHA256SUMS); \
-	gh release create "$$tag" \
-		$${PRERELEASE_FLAG} \
-		--title "$$tag" \
-		release/cosmic-lua release/SHA256SUMS
-
 ci_stages := teal test build
 
 .PHONY: ci
