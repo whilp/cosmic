@@ -201,18 +201,6 @@ all_checkable_files := $(addprefix $(o)/,$(all_source_files))
 ## Build all module files
 files: $(all_built_files)
 
-all_astgreps := $(patsubst %,%.ast-grep.ok,$(all_checkable_files))
-
-## Run ast-grep linter on all files
-astgrep: $(o)/astgrep-summary.txt
-
-$(o)/astgrep-summary.txt: $(all_astgreps) | $(build_reporter)
-	@$(reporter) --dir $(o) $^ | tee $@
-
-$(o)/%.ast-grep.ok: $(o)/% $(ast-grep_files) $(tl_staged) | $(bootstrap_files) $(ast-grep_staged)
-	@mkdir -p $(@D)
-	@ASTGREP_BIN=$(ast-grep_staged) $(astgrep_runner) $< > $@
-
 all_teals := $(patsubst %,%.teal.got,$(all_checkable_files))
 
 ## Run teal type checker on all files
