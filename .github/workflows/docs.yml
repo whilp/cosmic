@@ -1,0 +1,100 @@
+name: Generate Documentation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build cosmic binary
+        shell: bash -x {0}
+        run: bin/make -j
+
+      - name: Generate documentation
+        shell: bash -x {0}
+        run: bin/make -j doc
+
+      - name: Commit and push to docs branch
+        run: |
+          # Save current commit SHA
+          SOURCE_SHA="${{ github.sha }}"
+
+          # Copy generated docs to temp location
+          TEMP_DOCS=$(mktemp -d)
+          if [ -d "o" ]; then
+            cp -r o/. "$TEMP_DOCS/"
+            echo "Copied docs to $TEMP_DOCS"
+            ls -la "$TEMP_DOCS"
+          else
+            echo "No o/ directory found"
+            exit 1
+          fi
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Try to fetch and checkout docs branch, or create new orphan branch
+          if git fetch origin docs 2>/dev/null; then
+            git checkout docs
+          else
+            echo "Creating new orphan docs branch"
+            git checkout --orphan docs
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Remove old content and copy new docs
+          git rm -rf . 2>/dev/null || true
+          rm -rf ./*
+
+          # Copy docs from temp location, preserving structure
+          if [ -d "$TEMP_DOCS" ]; then
+            cp -r "$TEMP_DOCS"/. .
+          fi
+
+          # Create a README for the docs branch
+          cat > README.md << EOF
+          # Generated Documentation
+
+          This branch contains auto-generated documentation from the cosmic-lua source code.
+
+          **Source commit:** $SOURCE_SHA
+          **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          ## Contents
+
+          This documentation is generated from Teal source files using the \`cosmic.doc\` module.
+
+          To regenerate locally:
+          \`\`\`bash
+          make doc
+          \`\`\`
+
+          ---
+          *This branch is automatically updated by GitHub Actions. Do not edit manually.*
+          EOF
+
+          # Check if there are changes
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No documentation changes detected"
+            exit 0
+          fi
+
+          # Commit and push
+          git commit -m "docs: update generated documentation from $SOURCE_SHA"
+          git push -u origin docs
+
+          # Cleanup
+          rm -rf "$TEMP_DOCS"
