@@ -19,6 +19,8 @@ local record Opts
   help: boolean | string
   script: string
   script_args: {integer:string}
+  compile: string          -- Input file for --compile (outputs to stdout)
+  check: string            -- Input file for --check
 end
 
 -- Parse arguments using cosmo.getopt iterator API
@@ -33,12 +35,16 @@ local function parse_args(): Opts
     help = nil,
     script = nil,
     script_args = {},
+    compile = nil,
+    check = nil,
   }
 
   local shortopts = "e:l:ivEWh::s:"
   local longopts: {LongOpt} = {
     { "help", "optional", "h" },
     { "skill", "required", "s" },
+    { "compile", "required", nil },
+    { "check", "required", nil },  -- Takes first file, remaining files via remaining()
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -64,6 +70,11 @@ local function parse_args(): Opts
     end
   end
 
+  -- Options that consume all remaining arguments (no script after them)
+  local long_greedy: {string:boolean} = {
+    ["skill"] = true,
+  }
+
   -- Find first non-option argument (script name) to know where to stop parsing
   local script_idx: integer = nil
   local i = 1
@@ -76,7 +87,11 @@ local function parse_args(): Opts
     elseif a:sub(1, 2) == "--" then
       -- Long option
       local opt_name = a:sub(3)
-      if not opt_name:find("=") and long_needs_arg[opt_name] then
+      if long_greedy[opt_name] then
+        -- Greedy option: consumes all remaining args, no script
+        script_idx = nil
+        break
+      elseif not opt_name:find("=") and long_needs_arg[opt_name] then
         -- Takes next arg
         i = i + 2
       else
@@ -146,6 +161,12 @@ local function parse_args(): Opts
       -- Remaining args go to skill
       opts.script_args = parser:remaining() as {integer:string}
       return opts
+    elseif opt == "compile" then
+      opts.compile = optarg
+      return opts
+    elseif opt == "check" then
+      opts.check = optarg
+      return opts
     end
   end
 
@@ -211,6 +232,8 @@ if opts.help then
     io.write("\n")
     io.write("Cosmic options:\n")
     io.write("  --skill <name> [args]    run a skill module\n")
+    io.write("  --compile <file.tl>      compile Teal file to Lua (stdout)\n")
+    io.write("  --check <file.tl>        type-check a Teal file\n")
     io.write("  --help [module]          show help for cosmic or a module\n")
     io.write("\n")
     io.write("Standard lua options:\n")
@@ -241,6 +264,39 @@ if opts.skill then
     os.exit(code or 0)
   else
     io.stderr:write("error: skill '" .. opts.skill .. "' has no main function\n")
+    os.exit(1)
+  end
+end
+
+-- Handle --compile
+if opts.compile then
+  local teal = require("cosmic.teal")
+  local result = teal.compile(opts.compile)
+  if result.ok then
+    io.write(result.code)
+    os.exit(0)
+  else
+    io.stderr:write(teal.format_issues(result.errors) .. "\n")
+    os.exit(1)
+  end
+end
+
+-- Handle --check
+if opts.check then
+  local teal = require("cosmic.teal")
+  local result = teal.check(opts.check)
+
+  if #result.warnings > 0 then
+    io.stderr:write(teal.format_issues(result.warnings) .. "\n")
+  end
+  if #result.errors > 0 then
+    io.stderr:write(teal.format_issues(result.errors) .. "\n")
+  end
+
+  if result.ok then
+    io.write("Type check passed\n")
+    os.exit(0)
+  else
     os.exit(1)
   end
 end
