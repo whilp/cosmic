@@ -57,18 +57,6 @@ $(o)/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files) $$(tl_staged)
 	@mkdir -p $(@D)
 	@$(bootstrap_cosmic) --compile $< > $@
 
-# bin scripts: o/bin/X.lua from lib/*/X.lua and 3p/*/X.lua
-vpath %.lua lib/build 3p/tl
-vpath %.tl lib/build 3p/tl
-$(o)/bin/%.lua: %.lua
-	@mkdir -p $(@D)
-	@$(cp) $< $@
-
-# bin scripts from teal: o/bin/X.lua from 3p/*/X.tl (vpath finds X.tl)
-$(o)/bin/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files) | $(tl_staged)
-	@mkdir -p $(@D)
-	@$(bootstrap_cosmic) --compile $< > $@
-
 # tl files: modules declare _tl_files, derive compiled .lua outputs
 all_tl_files := $(call filter-only,$(foreach x,$(modules),$($(x)_tl_files)))
 all_tl_lua := $(patsubst %.tl,$(o)/%.lua,$(all_tl_files))
