@@ -5,12 +5,12 @@ build_stage := $(o)/lib/build/build-stage.lua
 build_reporter := $(o)/lib/build/reporter.lua
 build_help := $(o)/lib/build/make-help.lua
 build_files := $(build_fetch) $(build_stage) $(build_reporter) $(build_help)
-build_tests := $(wildcard lib/build/test_*.tl)
+build_tests := $(wildcard lib/build/*_test.tl)
 
 reporter := $(bootstrap_cosmic) -- $(build_reporter)
 
-# test_reporter needs cosmic binary
-$(o)/lib/build/test_reporter.tl.test.got: $$(cosmic_bin)
+# reporter_test needs cosmic binary
+$(o)/lib/build/reporter_test.tl.test.got: $$(cosmic_bin)
 
 # make-help snapshot: generate actual help output
 $(o)/lib/build/make-help.snap: Makefile $(build_help) | $(bootstrap_cosmic)
@@ -30,5 +30,5 @@ $(build_make_out)/database.out: Makefile $(wildcard */*.mk) $(wildcard */*/*.mk)
 
 build_make_outputs := $(build_make_out)/dry-run.out $(build_make_out)/database.out
 
-$(o)/lib/build/test_makefile.tl.test.got: $(build_make_outputs)
-$(o)/lib/build/test_makefile.tl.test.got: TEST_DIR := $(build_make_out)
+$(o)/lib/build/makefile_test.tl.test.got: $(build_make_outputs)
+$(o)/lib/build/makefile_test.tl.test.got: TEST_DIR := $(build_make_out)
