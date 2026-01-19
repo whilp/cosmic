@@ -20,8 +20,8 @@ local record CategorizedResults
 end
 
 local function extract_checker(filename: string): string
-  -- Handle .test.exit files (new format)
-  local checker = filename:match("%.([^%.]+)%.exit$")
+  -- Handle .test.got files (new format)
+  local checker = filename:match("%.([^%.]+)%.got$")
   if checker then
     return checker
   end
@@ -85,8 +85,8 @@ local function main(...: string): number, string
 
   for _, checker in ipairs(checkers) do
     local results: CategorizedResults = {pass = {}, fail = {}, skip = {}, ignore = {}}
-    -- Handle both .exit and .ok suffixes
-    local strip_suffix_exit = "%." .. checker:gsub("%-", "%%-") .. "%.exit$"
+    -- Handle both .got and .ok suffixes
+    local strip_suffix_got = "%." .. checker:gsub("%-", "%%-") .. "%.got$"
     local strip_suffix_ok = "%." .. checker:gsub("%-", "%%-") .. "%.ok$"
     local show_checker = checker ~= "update"
 
@@ -98,11 +98,11 @@ local function main(...: string): number, string
       if content then
         local result: CheckResult
 
-        -- Handle new test format (.test.exit files)
-        if file:match("%.test%.exit$") then
+        -- Handle new test format (.test.got files)
+        if file:match("%.test%.got$") then
           local exit_code = tonumber(content:match("^(%d+)"))
           local status_str = exit_code == 0 and "pass" or "fail"
-          local base = file:gsub("%.exit$", "")
+          local base = file:gsub("%.got$", "")
           local out_content = cosmo.Slurp(base .. ".out") or ""
           local err_content = cosmo.Slurp(base .. ".err") or ""
 
@@ -117,7 +117,7 @@ local function main(...: string): number, string
           result = {
             status = status_str,
             message = message,
-            name = name_transform(common.strip_prefix(file):gsub(strip_suffix_exit, "")),
+            name = name_transform(common.strip_prefix(file):gsub(strip_suffix_got, "")),
             file = file,
             checker = show_checker and checker or nil,
           }

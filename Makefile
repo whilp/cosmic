@@ -59,6 +59,9 @@ $(o)/%: %
 $(o)/%.lua: %.tl $(types_files) $(tl_files) $(bootstrap_files) $$(tl_staged)
 	@mkdir -p $(@D)
 	@$(tl_gen) $< -o $@
+	@if head -1 $< | grep -q '^#!/'; then \
+		( head -1 $< && cat $@ ) > $@.tmp && mv $@.tmp $@; \
+	fi
 
 # bin scripts: o/bin/X.lua from lib/*/X.lua and 3p/*/X.lua
 vpath %.lua lib/build 3p/tl
@@ -145,7 +148,7 @@ $(o)/%/.zip: $(o)/%/.staged $$(cosmos_staged)
 all_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_tests)))
 all_release_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_release_test) $($(x)_release_tests)))
 all_declared_tests := $(all_tests) $(all_release_tests)
-all_tested := $(patsubst %,o/%.test.exit,$(all_tests))
+all_tested := $(patsubst %,o/%.test.got,$(all_tests))
 all_snaps := $(call filter-only,$(foreach x,$(modules),$($(x)_snaps)))
 all_snapped := $(patsubst %,$(o)/%.snap.test.ok,$(all_snaps))
 all_buns := $(call filter-only,$(foreach x,$(modules),$($(x)_buns)))
@@ -166,12 +169,13 @@ lib_dirs_lua_path := $(subst ; ,;,$(foreach d,$(lib_dirs),$(CURDIR)/$(d)/?.lua;$
 export LUA_PATH := $(CURDIR)/o/bin/?.lua;$(CURDIR)/o/teal/lib/?.lua;$(CURDIR)/o/teal/lib/?/init.lua;$(CURDIR)/o/lib/?.lua;$(CURDIR)/o/lib/?/init.lua;$(lib_dirs_lua_path)$(CURDIR)/lib/?.lua;$(CURDIR)/lib/?/init.lua;;
 export NO_COLOR := 1
 
-# Test rule: execute test and capture exit code, stdout, stderr
-$(o)/%.tl.test.exit: .PLEDGE = stdio rpath wpath cpath proc exec
-$(o)/%.tl.test.exit: .UNVEIL = rx:$(o)/bootstrap r:lib r:3p rwc:$(o) rwc:$(TMP) rx:/usr rx:/proc r:/etc r:/dev/null
-$(o)/%.tl.test.exit: $(o)/%.lua $(test_files) $(checker_files) | $(bootstrap_files)
+# Test rule: execute test directly via shebang, capture exit code, stdout, stderr
+$(o)/%.tl.test.got: .PLEDGE = stdio rpath wpath cpath proc exec
+$(o)/%.tl.test.got: .UNVEIL = rx:$(o)/bootstrap r:lib r:3p rwc:$(o) rwc:$(TMP) rx:/usr rx:/proc r:/etc r:/dev/null
+$(o)/%.tl.test.got: $(o)/%.lua $(test_files) $(checker_files) $(o)/bin/cosmic | $(bootstrap_files)
 	@mkdir -p $(@D)
-	-@TEST_DIR=$(TEST_DIR) $(bootstrap_cosmic) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
+	@chmod +x $<
+	-@PATH=$(CURDIR)/o/bin:$$PATH TEST_DIR=$(TEST_DIR) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
 
 # Snapshot test pattern: compare expected vs actual
 $(o)/%.snap.test.ok: .EXTRA_PREREQS = $(build_snap)
@@ -185,17 +189,17 @@ $(foreach m,$(filter-out bootstrap,$(modules)),\
   $(eval $(m)_tl_lua := $(patsubst %.tl,$(o)/%.lua,$($(m)_tl_files))))
 # second pass: set up test dependencies
 $(foreach m,$(filter-out bootstrap,$(modules)),\
-  $(eval $(patsubst %,$(o)/%.test.exit,$($(m)_tests)): $($(m)_files) $($(m)_tl_lua))\
-  $(eval $(patsubst %,$(o)/%.test.exit,$($(m)_tests)): TEST_DEPS += $($(m)_files) $($(m)_tl_lua))\
+  $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(m)_files) $($(m)_tl_lua))\
+  $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): TEST_DEPS += $($(m)_files) $($(m)_tl_lua))\
   $(if $($(m)_dir),\
-    $(eval $(patsubst %,$(o)/%.test.exit,$($(m)_tests)): $($(m)_dir))\
-    $(eval $(patsubst %,$(o)/%.test.exit,$($(m)_tests)): TEST_DEPS += $($(m)_dir))\
-    $(eval $(patsubst %,$(o)/%.test.exit,$($(m)_tests)): TEST_DIR := $($(m)_dir)))\
+    $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(m)_dir))\
+    $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): TEST_DEPS += $($(m)_dir))\
+    $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): TEST_DIR := $($(m)_dir)))\
   $(foreach d,$(filter-out $(m),$(default_deps) $($(m)_deps)),\
     $(if $($(d)_dir),\
-      $(eval $(patsubst %,$(o)/%.test.exit,$($(m)_tests)): $($(d)_dir))\
-      $(eval $(patsubst %,$(o)/%.test.exit,$($(m)_tests)): TEST_DEPS += $($(d)_dir)))\
-    $(eval $(patsubst %,$(o)/%.test.exit,$($(m)_tests)): $($(d)_files) $($(d)_tl_lua))))
+      $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(d)_dir))\
+      $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): TEST_DEPS += $($(d)_dir)))\
+    $(eval $(patsubst %,$(o)/%.test.got,$($(m)_tests)): $($(d)_files) $($(d)_tl_lua))))
 
 all_built_files := $(call filter-only,$(foreach x,$(modules),$($(x)_files)))
 all_built_files += $(all_tl_lua)

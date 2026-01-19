@@ -1,4 +1,4 @@
-#!/usr/bin/env cosmic-lua
+#!/usr/bin/env cosmic
 -- test cosmic bundled binary
 
 local unix = require("cosmo.unix")

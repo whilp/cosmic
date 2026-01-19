@@ -1,4 +1,4 @@
-#!/usr/bin/env cosmic-lua
+#!/usr/bin/env cosmic
 -- Test the Makefile help system
 
 local cosmo = require("cosmo")

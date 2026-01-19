@@ -1,4 +1,4 @@
-#!/usr/bin/env cosmic-lua
+#!/usr/bin/env cosmic
 
 local path = require("cosmo.path")
 local unix = require("cosmo.unix")

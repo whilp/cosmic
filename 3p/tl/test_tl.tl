@@ -1,4 +1,4 @@
-#!/usr/bin/env cosmic-lua
+#!/usr/bin/env cosmic
 -- ast-grep ignore: test file needs package.path manipulation
 local path = require("cosmo.path")
 
