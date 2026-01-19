@@ -339,16 +339,14 @@ local function main(): integer, string
       }
     end
 
-    local spawn = require("cosmic.spawn")
-
-    -- Use cp to copy the executable
-    local handle, err = spawn({"cp", "-p", current_exe, output})
-    if not handle then
-      return 1, "error: failed to spawn cp: " .. err
+    -- Copy the executable to output
+    local cosmo = require("cosmo")
+    local exe_data = cosmo.Slurp(current_exe)
+    if not exe_data then
+      return 1, "error: cannot read executable '" .. current_exe .. "'"
     end
-    local exitcode, wait_err = handle:wait()
-    if exitcode ~= 0 then
-      return 1, "error: failed to copy executable" .. (wait_err and (": " .. wait_err) or "")
+    if not cosmo.Barf(output, exe_data, tonumber("755", 8)) then
+      return 1, "error: cannot write to '" .. output .. "'"
     end
 
     -- Use cosmo.zip to append files to the executable
