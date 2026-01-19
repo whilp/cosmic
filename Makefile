@@ -117,7 +117,7 @@ $(o)/%/.staged: $(o)/%/.fetched $(build_files)
 	@$(build_stage) $$(readlink $(o)/$*/.versioned) $(platform) $< $@
 
 all_tests := $(call filter-only,$(foreach x,$(modules),$($(x)_tests)))
-all_tested := $(patsubst %,o/%.test.got,$(all_tests))
+all_tested := $(patsubst %,$(o)/%.test.got,$(all_tests))
 
 ## Run all tests (incremental)
 test: $(o)/test-summary.txt
@@ -129,9 +129,10 @@ export TEST_O := $(o)
 export TEST_PLATFORM := $(platform)
 export TEST_BIN := $(o)/bin
 export TEST_TMPDIR := $(TMP)
-# Build LUA_PATH from lib_dirs (populated by cook.mk includes)
-lib_dirs_lua_path := $(subst ; ,;,$(foreach d,$(lib_dirs),$(CURDIR)/$(d)/?.lua;$(CURDIR)/$(d)/?/init.lua;))
-export LUA_PATH := $(CURDIR)/o/bin/?.lua;$(CURDIR)/o/teal/lib/?.lua;$(CURDIR)/o/teal/lib/?/init.lua;$(CURDIR)/o/lib/?.lua;$(CURDIR)/o/lib/?/init.lua;$(lib_dirs_lua_path)$(CURDIR)/lib/?.lua;$(CURDIR)/lib/?/init.lua;;
+# LUA_PATH: output dirs first, then source dirs
+space := $(subst ,, )
+lua_path_dirs := $(o)/bin $(o)/teal/lib $(o)/lib lib
+export LUA_PATH := $(subst $(space),;,$(foreach d,$(lua_path_dirs),$(CURDIR)/$(d)/?.lua $(CURDIR)/$(d)/?/init.lua));;
 export NO_COLOR := 1
 
 # Test rule: execute test directly via shebang, capture exit code, stdout, stderr
@@ -140,7 +141,7 @@ $(o)/%.tl.test.got: .UNVEIL = rx:$(o)/bootstrap r:lib r:3p rwc:$(o) rwc:$(TMP) r
 $(o)/%.tl.test.got: $(o)/%.lua $(test_files) $(o)/bin/cosmic | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@chmod +x $<
-	-@PATH=$(CURDIR)/o/bin:$$PATH TEST_DIR=$(TEST_DIR) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
+	-@PATH=$(CURDIR)/$(o)/bin:$$PATH TEST_DIR=$(TEST_DIR) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
 
 # expand test deps: M's tests depend on own _files/_tl_files plus deps' _dir/_files/_tl_lua
 # derive compiled .lua from _tl_files (first pass: compute all _tl_lua)
