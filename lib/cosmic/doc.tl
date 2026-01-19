@@ -17,6 +17,7 @@ local record FunctionDoc
   description: string
   params: {Param}
   returns: {Return}
+  signature: string
   line: integer
   is_local: boolean
 end
@@ -167,11 +168,43 @@ local function parse(source: string, file_path: string): ModuleDoc
   end
 
   -- Find functions: local function name() or function name()
-  for func_start, is_local, func_name, func_args in source:gmatch("()(local%s+)function%s+([%w_:]+)%s*%(([^%)]*)%)") do
+  -- Capture full signature including return types
+  for func_start, is_local, func_name in source:gmatch("()(local%s+)function%s+([%w_:]+)%s*%(") do
     update_line_num(func_start as integer)
 
     -- Skip Example_* functions (handled separately)
     if not (func_name as string):match("^Example") then
+      -- Find the signature: from ( to the end of the line or to the function body
+      local sig_start = source:find("%(", func_start as integer)
+      local sig_end = sig_start
+      local depth = 0
+
+      -- Scan forward to find the matching closing paren
+      for i = sig_start, #source do
+        local char = source:sub(i, i)
+        if char == "(" then
+          depth = depth + 1
+        elseif char == ")" then
+          depth = depth - 1
+          if depth == 0 then
+            sig_end = i
+            -- Continue scanning for return type annotation up to newline
+            local j = i + 1
+            while j <= #source do
+              local c = source:sub(j, j)
+              if c == "\n" then
+                break
+              end
+              sig_end = j
+              j = j + 1
+            end
+            break
+          end
+        end
+      end
+
+      local signature = source:sub(sig_start, sig_end)
+
       local func_doc = extract_doc_comment(source, func_start as integer)
       local params, returns, description = parse_annotations(func_doc)
 
@@ -180,6 +213,7 @@ local function parse(source: string, file_path: string): ModuleDoc
         description = description,
         params = params,
         returns = returns,
+        signature = signature,
         line = line_num,
         is_local = is_local ~= nil,
       })
@@ -189,13 +223,44 @@ local function parse(source: string, file_path: string): ModuleDoc
   -- Also find non-local functions
   line_num = 1
   last_pos = 1
-  for func_start, func_name, func_args in source:gmatch("()function%s+([%w_:]+)%s*%(([^%)]*)%)") do
+  for func_start, func_name in source:gmatch("()function%s+([%w_:]+)%s*%(") do
     -- Skip if this is a "local function"
     local before = source:sub(math.max(1, (func_start as integer) - 20), (func_start as integer) - 1)
     if not before:match("local%s*$") then
       update_line_num(func_start as integer)
 
       if not (func_name as string):match("^Example") then
+        -- Find the signature: from ( to the end of the line or to the function body
+        local sig_start = source:find("%(", func_start as integer)
+        local sig_end = sig_start
+        local depth = 0
+
+        -- Scan forward to find the matching closing paren
+        for i = sig_start, #source do
+          local char = source:sub(i, i)
+          if char == "(" then
+            depth = depth + 1
+          elseif char == ")" then
+            depth = depth - 1
+            if depth == 0 then
+              sig_end = i
+              -- Continue scanning for return type annotation up to newline
+              local j = i + 1
+              while j <= #source do
+                local c = source:sub(j, j)
+                if c == "\n" then
+                  break
+                end
+                sig_end = j
+                j = j + 1
+              end
+              break
+            end
+          end
+        end
+
+        local signature = source:sub(sig_start, sig_end)
+
         local func_doc = extract_doc_comment(source, func_start as integer)
         local params, returns, description = parse_annotations(func_doc)
 
@@ -204,6 +269,7 @@ local function parse(source: string, file_path: string): ModuleDoc
           description = description,
           params = params,
           returns = returns,
+          signature = signature,
           line = line_num,
           is_local = false,
         })
@@ -357,6 +423,14 @@ local function render(doc: ModuleDoc): string
     for _, func in ipairs(exported_functions) do
       table.insert(lines, "### " .. func.name)
       table.insert(lines, "")
+
+      -- Show signature if available
+      if func.signature then
+        table.insert(lines, "```teal")
+        table.insert(lines, "function " .. func.name .. func.signature)
+        table.insert(lines, "```")
+        table.insert(lines, "")
+      end
 
       if func.description then
         table.insert(lines, func.description)

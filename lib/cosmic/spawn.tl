@@ -34,10 +34,17 @@ local function make_pipe(fd: number): Pipe
   end
   local pipe: Pipe = {fd = fd}
 
+  --- Write data to the pipe.
+  --- @param data string The data to write
+  --- @return number The number of bytes written
   function pipe:write(data: string): number
     return unix.write(self.fd, data)
   end
 
+  --- Read data from the pipe.
+  --- If size is provided, reads up to that many bytes. Otherwise, reads until EOF.
+  --- @param size number Optional number of bytes to read
+  --- @return string The data read from the pipe
   function pipe:read(size?: number): string
     if size then
       return unix.read(self.fd, size)
@@ -53,6 +60,7 @@ local function make_pipe(fd: number): Pipe
     return table.concat(chunks)
   end
 
+  --- Close the pipe and release the file descriptor.
   pipe.close = function(self: Pipe)
     if self.fd then
       local _ = unix.close(self.fd)
@@ -165,6 +173,10 @@ local function spawn(argv: {string}, opts?: SpawnOpts): SpawnHandle, string
     stderr = make_pipe(stderr_r),
   }
 
+  --- Wait for the process to exit and return its exit code.
+  --- Closes stdin and reads/closes stdout and stderr before waiting.
+  --- @return number The exit code if the process exited normally
+  --- @return string Error message if the process terminated abnormally
   function handle:wait(): number, string
     if self.stdin then self.stdin:close() end
     if self.stdout then self.stdout:read() end
@@ -178,6 +190,14 @@ local function spawn(argv: {string}, opts?: SpawnOpts): SpawnHandle, string
     return nil, "process terminated abnormally"
   end
 
+  --- Read output from the process.
+  --- If size is specified, reads that many bytes and returns the data as a string.
+  --- If size is not specified, reads all output, waits for process to exit, and returns
+  --- success status, output, and exit code.
+  --- @param size number Optional number of bytes to read
+  --- @return boolean|string Success status (true if exit code is 0) or output string if size specified
+  --- @return string The stdout output from the process
+  --- @return number The exit code of the process
   function handle:read(size?: number): boolean | string, string, number
     if not self.stdout then
       return nil, "stdout not captured"
