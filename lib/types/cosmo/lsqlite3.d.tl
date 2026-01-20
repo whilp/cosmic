@@ -75,7 +75,21 @@ local record lsqlite3
   NULL: number
   FLOAT: number
 
+  --- Opens (or creates if it does not exist) an SQLite database with name filename
+  --- and returns its handle as userdata (the returned object should be used for all
+  --- further method calls in connection with this specific database, see Database
+  --- methods). Example:
+  --- myDB = lsqlite3.open('MyDatabase.sqlite3')  -- open
+  --- -- do some database calls...
+  --- myDB:close()  -- close
+  --- In case of an error, the function returns `nil`, an error code and an error message.
+  --- Since `0.9.4`, there is a second optional `flags` argument to `lsqlite3.open`.
+  --- See https://www.sqlite.org/c3ref/open.html for an explanation of these flags and options.
+  --- local db = lsqlite3.open('foo.db', lsqlite3.OPEN_READWRITE + lsqlite3.OPEN_CREATE + lsqlite3.OPEN_SHAREDCACHE)
   open: function(filename: string, flags?: number): Database
+  --- Opens an SQLite database in memory and returns its handle as userdata. In case
+  --- of an error, the function returns `nil`, an error code and an error message.
+  --- (In-memory databases are volatile as they are never stored on disk.)
   open_memory: function(): Database
   lversion: function(): string
   version: function(): string

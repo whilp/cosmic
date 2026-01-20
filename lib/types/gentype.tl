@@ -192,10 +192,13 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
   local class_annotation: string = nil
 
   for _, line in ipairs(lines) do
-    -- Description line (--- text but not ---@)
-    local desc_text = line:match("^%-%-%-%s*([^@].*)$")
-    if desc_text then
-      table.insert(desc, desc_text)
+    -- Skip lines with annotations (---@) - handle them separately below
+    if not line:match("^%-%-%-@") then
+      -- Description line (--- text but not ---@)
+      local desc_text = line:match("^%-%-%-%s*(.*)$")
+      if desc_text and desc_text ~= "" then
+        table.insert(desc, desc_text)
+      end
     end
 
     -- @param name type description
@@ -511,6 +514,21 @@ local function parse_module(source: string, module_name: string): ModuleDecl
   return module
 end
 
+--- Format description lines as comments.
+local function format_description(desc: {string}, indent: string): {string}
+  local result: {string} = {}
+  if #desc > 0 then
+    for _, line in ipairs(desc) do
+      if line ~= "" then
+        table.insert(result, indent .. "--- " .. line)
+      else
+        table.insert(result, indent .. "---")
+      end
+    end
+  end
+  return result
+end
+
 --- Generate Teal .d.tl content for a module.
 local function generate_dtl(module: ModuleDecl): string
   local out: {string} = {}
@@ -523,9 +541,19 @@ local function generate_dtl(module: ModuleDecl): string
   for _, cls in ipairs(module.classes) do
     -- Skip if it's just a placeholder with no methods
     if #cls.methods > 0 or #cls.fields > 0 then
+      -- Class description
+      for _, line in ipairs(format_description(cls.description, "")) do
+        table.insert(out, line)
+      end
       table.insert(out, "local record " .. cls.name)
       -- Methods
       for _, method in ipairs(cls.methods) do
+        -- Method description
+        if #method.description > 0 then
+          for _, line in ipairs(format_description(method.description, "  ")) do
+            table.insert(out, line)
+          end
+        end
         local params_parts: {string} = {"self: " .. cls.name}
         for _, p in ipairs(method.params) do
           local ptype = convert_type(p.param_type)
@@ -565,6 +593,12 @@ local function generate_dtl(module: ModuleDecl): string
   -- Constants
   if #module.constants > 0 then
     for _, c in ipairs(module.constants) do
+      -- Constant description
+      if #c.description > 0 then
+        for _, line in ipairs(format_description(c.description, "  ")) do
+          table.insert(out, line)
+        end
+      end
       table.insert(out, "  " .. c.name .. ": " .. convert_type(c.const_type))
     end
     if #module.functions > 0 then
@@ -574,6 +608,12 @@ local function generate_dtl(module: ModuleDecl): string
 
   -- Functions
   for _, func in ipairs(module.functions) do
+    -- Function description
+    if #func.description > 0 then
+      for _, line in ipairs(format_description(func.description, "  ")) do
+        table.insert(out, line)
+      end
+    end
     local params_parts: {string} = {}
     for _, p in ipairs(func.params) do
       local ptype = convert_type(p.param_type)

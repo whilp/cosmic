@@ -202,6 +202,23 @@ $(o)/%.tl.example.got: %.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@set +e; $(cosmic_bin) --example $< > $(basename $@).out 2> $(basename $@).err; echo $$? > $@
 
+# Type definition regeneration
+type_modules := unix path getopt lsqlite3 re maxmind finger argon2
+type_outputs := $(patsubst %,lib/types/cosmo/%.d.tl,$(type_modules))
+
+.PHONY: regen-types
+## Regenerate .d.tl type definitions from cosmopolitan definitions.lua
+regen-types: $(cosmic_bin)
+	@echo "Regenerating type definitions..."
+	@for mod in $(type_modules); do \
+		echo "  $$mod.d.tl"; \
+		$(cosmic_bin) -e "print(require('types.gentype').run('$$mod').output)" > lib/types/cosmo/$$mod.d.tl; \
+	done
+	@# Restore manually-fixed files
+	@echo "Restoring manual fixes to unix.d.tl and getopt.d.tl..."
+	@git checkout HEAD -- lib/types/cosmo/unix.d.tl lib/types/cosmo/getopt.d.tl || true
+	@echo "Type definitions regenerated."
+
 # Documentation generation - render .tl files as markdown
 all_docs := $(patsubst %.tl,$(o)/docs/%.md,$(all_example_srcs))
 
