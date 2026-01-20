@@ -43,6 +43,7 @@ local record SpawnOpts
   stdout: number
   stderr: number
   env: {string}
+  cwd: string
 end
 ```
 
