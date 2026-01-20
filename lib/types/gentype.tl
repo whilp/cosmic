@@ -1,0 +1,697 @@
+#!/usr/bin/env cosmic
+--- Generate Teal .d.tl type definitions from cosmo-lua definitions.lua.
+--- Parses LuaLS annotations and produces Teal-compatible type declarations.
+
+local cosmo = require("cosmo")
+local cosmic = require("cosmic")
+
+-- Modules to generate (in order)
+local MODULES = {"unix", "path", "getopt", "lsqlite3", "re", "maxmind", "finger", "argon2"}
+
+-- Type conversion from LuaLS to Teal
+-- integer -> number for Teal compatibility (Teal infers numeric literals as number)
+local TYPE_ALIASES = {
+  ["integer"] = "number",
+  ["number"] = "number",
+  ["string"] = "string",
+  ["boolean"] = "boolean",
+  ["any"] = "any",
+  ["nil"] = "nil",
+  ["table"] = "table",
+  ["function"] = "function",
+  ["userdata"] = "userdata",
+  ["FILE"] = "FILE",
+  ["uint32"] = "number",
+  ["uint16"] = "number",
+  ["int64"] = "number",
+}
+
+-- Records for parsed data
+local record Param
+  name: string
+  param_type: string
+  description: string
+  optional: boolean
+end
+
+local record Return
+  return_type: string
+  description: string
+end
+
+local record FuncDecl
+  name: string
+  module: string
+  description: {string}
+  params: {Param}
+  returns: {Return}
+  is_method: boolean
+  class_name: string
+  nodiscard: boolean
+end
+
+local record Constant
+  name: string
+  const_type: string
+  description: {string}
+end
+
+local record Field
+  name: string
+  field_type: string
+  description: {string}
+end
+
+local record ClassDecl
+  name: string
+  module: string
+  parent: string
+  fields: {Field}
+  methods: {FuncDecl}
+  description: {string}
+end
+
+local record ModuleDecl
+  name: string
+  description: {string}
+  functions: {FuncDecl}
+  classes: {ClassDecl}
+  constants: {Constant}
+end
+
+--- Convert a LuaLS type to Teal type.
+local function convert_type(t: string): string
+  if not t or t == "" then return "any" end
+
+  -- Remove leading/trailing whitespace
+  t = t:match("^%s*(.-)%s*$")
+
+  -- Handle inline record types like "{ name: string, ip: integer }" or "{ name: string }[]"
+  -- Teal doesn't support inline record definitions in function signatures, convert to any
+  if t:match("^{%s*[%w_]+%s*:%s*") then
+    return "any"
+  end
+
+  -- Handle backtick-quoted types (invalid) -> convert to any
+  if t:match("`") then
+    return "any"
+  end
+
+  -- Check simple aliases
+  if TYPE_ALIASES[t] then
+    return TYPE_ALIASES[t]
+  end
+
+  -- Handle literal boolean types: true -> boolean, false -> boolean
+  if t == "true" or t == "false" then
+    return "boolean"
+  end
+
+  -- Handle literal number types: 0, 1, etc. -> number
+  -- Use number instead of integer for Teal compatibility (Teal infers numeric values as number)
+  if t:match("^%-?%d+$") then
+    return "number"
+  end
+
+  -- Convert integer to number for Teal compatibility
+  -- Teal's type system infers all Lua numbers as 'number', not 'integer'
+  if t == "integer" then
+    return "number"
+  end
+
+  -- Handle nullable types: T? -> T (mark optional in param position)
+  local base = t:match("^(.+)%?$")
+  if base then
+    return convert_type(base)
+  end
+
+  -- Handle array types: string[] -> {string}
+  base = t:match("^(.+)%[%]$")
+  if base then
+    return "{" .. convert_type(base) .. "}"
+  end
+
+  -- Handle table<K,V> -> {K:V}
+  local k, v = t:match("^table<([^,]+),%s*(.+)>$")
+  if k and v then
+    return "{" .. convert_type(k) .. ":" .. convert_type(v) .. "}"
+  end
+
+  -- Handle fun(args): ret -> function(args): ret
+  local fun_match = t:match("^fun%((.*)%)$")
+  if fun_match then
+    return "function(" .. fun_match .. ")"
+  end
+  fun_match = t:match("^fun%((.*)%):(.+)$")
+  if fun_match then
+    local args, ret = t:match("^fun%((.*)%):(.+)$")
+    return "function(" .. (args or "") .. "): " .. convert_type(ret or "")
+  end
+
+  -- Handle generic function syntax: fun(a: T, b: U): R
+  if t:match("^fun%(") then
+    local inside = t:match("^fun%((.*)%):%s*(.+)$")
+    if inside then
+      local args_part, ret_part = t:match("^fun%((.*)%):%s*(.+)$")
+      return "function(" .. (args_part or "") .. "): " .. convert_type(ret_part or "")
+    end
+    inside = t:match("^fun%((.*)%)$")
+    if inside then
+      return "function(" .. inside .. ")"
+    end
+  end
+
+  -- Handle union types: T|U -> T | U (keep as is for now, Teal doesn't support well)
+  if t:match("|") then
+    -- For unions, just take the first non-nil type
+    for part in t:gmatch("[^|]+") do
+      part = part:match("^%s*(.-)%s*$")
+      if part ~= "nil" then
+        return convert_type(part)
+      end
+    end
+    return "any"
+  end
+
+  -- Handle module-prefixed types: lsqlite3.Database -> Database
+  local prefix, suffix = t:match("^([%w_]+)%.([%w_]+)$")
+  if prefix and suffix then
+    return suffix
+  end
+
+  -- Return as-is (it's probably a class name)
+  return t
+end
+
+--- Parse annotations from a block of text before a declaration.
+local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, boolean, string
+  local desc: {string} = {}
+  local params: {Param} = {}
+  local returns: {Return} = {}
+  local nodiscard = false
+  local class_annotation: string = nil
+
+  for _, line in ipairs(lines) do
+    -- Description line (--- text but not ---@)
+    local desc_text = line:match("^%-%-%-%s*([^@].*)$")
+    if desc_text then
+      table.insert(desc, desc_text)
+    end
+
+    -- @param name type description
+    -- Parameter name may end with ? for optional params
+    local pname, ptype, pdesc = line:match("^%-%-%-@param%s+([%w_%.%?]+)%s+([^%s]+)%s*(.*)$")
+    if pname then
+      local optional = ptype:match("%?$") ~= nil
+      if optional then
+        ptype = ptype:sub(1, -2)
+      end
+      -- Also check if name ends with ?
+      if pname:match("%?$") then
+        optional = true
+        pname = pname:sub(1, -2)
+      end
+      table.insert(params, {name = pname, param_type = ptype, description = pdesc or "", optional = optional})
+    end
+
+    -- @return type [name] [description]
+    -- Each @return line describes one return value
+    local full_return = line:match("^%-%-%-@return%s+(.+)$")
+    if full_return then
+      full_return = full_return:match("^%s*(.-)%s*$")  -- trim
+      local rtype: string = nil
+      local rdesc: string = nil
+
+      -- Check if it's an inline record type: { ... }
+      if full_return:match("^{") then
+        -- Match everything up to closing } or }[]
+        rtype, rdesc = full_return:match("^({.-%}%[?%]?)%s+(.*)$")
+        if not rtype then
+          rtype = full_return:match("^({.-%}%[?%]?)%s*$")
+        end
+      -- Check if it contains angle brackets (generic type like table<K, V>)
+      elseif full_return:match("<.->") then
+        -- Match generic type, everything after closing > is description
+        rtype, rdesc = full_return:match("^([^%s]+<.->)%s+(.*)$")
+        if not rtype then
+          rtype = full_return:match("^([^%s]+<.->)%s*$")
+        end
+      end
+      -- Simple type: just first word
+      if not rtype then
+        rtype, rdesc = full_return:match("^([^%s]+)%s+(.*)$")
+        if not rtype then
+          rtype = full_return
+        end
+      end
+      if rtype and rtype ~= "" then
+        -- Strip trailing comma (from formats like "@return nil, unix.Errno error")
+        rtype = rtype:gsub(",$", "")
+        table.insert(returns, {return_type = rtype, description = rdesc or ""})
+      end
+    end
+
+    -- @nodiscard
+    if line:match("^%-%-%-@nodiscard") then
+      nodiscard = true
+    end
+
+    -- @class ClassName or @class ClassName: parent
+    local cname = line:match("^%-%-%-@class%s+([%w_%.]+)")
+    if cname then
+      class_annotation = cname
+    end
+
+    -- @type annotation (for constants)
+    local ttype = line:match("^%-%-%-?%s*@type%s+([%w_]+)")
+    if ttype then
+      -- Store in returns as a workaround for constants
+      table.insert(returns, {return_type = ttype, description = "type"})
+    end
+  end
+
+  return desc, params, returns, nodiscard, class_annotation
+end
+
+--- Extract a module's content from definitions.lua.
+local function extract_module_content(source: string, module_name: string): string
+  -- Find module start: modulename = { or modulename = {}
+  local pattern = "\n" .. module_name .. " = {"
+  local start_pos = source:find(pattern, 1, true)
+  if not start_pos then
+    pattern = "^" .. module_name .. " = {"
+    if source:match(pattern) then
+      start_pos = 1
+    else
+      return nil
+    end
+  end
+
+  -- Find module end by tracking braces
+  local brace_count = 0
+  local in_module = false
+  local end_pos = start_pos
+
+  for i = start_pos, #source do
+    local c = source:sub(i, i)
+    if c == "{" then
+      brace_count = brace_count + 1
+      in_module = true
+    elseif c == "}" then
+      brace_count = brace_count - 1
+      if in_module and brace_count == 0 then
+        end_pos = i
+        break
+      end
+    end
+  end
+
+  -- Now find functions defined outside the module block: function module.func() or function Class:method()
+  -- Look for patterns after the closing brace
+  local content = source:sub(start_pos, end_pos)
+
+  -- Find all related function declarations after the module table
+  -- Look for function module.name() or function module.Class:method()
+  local search_start = end_pos
+  while true do
+    -- Find next function for this module (pattern: function module.anything)
+    local func_start = source:find("\nfunction " .. module_name .. "%.", search_start)
+
+    if not func_start then break end
+
+    -- Check if we've moved past the next module definition
+    local next_module_start = source:find("\n[%w_]+ = {", func_start + 1)
+    if next_module_start and func_start > next_module_start then
+      break
+    end
+
+    -- Find the end of this function (next function or end of file or next module)
+    local func_end = source:find("\nfunction ", func_start + 1)
+    local next_module = next_module_start
+
+    if func_end and next_module then
+      func_end = math.min(func_end, next_module)
+    elseif next_module then
+      func_end = next_module
+    end
+
+    if func_end then
+      -- Include any annotations before the function
+      local anno_start = func_start
+      while anno_start > search_start do
+        local prev_line_end = source:sub(1, anno_start - 1):match(".*\n()") or 1
+        local prev_line = source:sub(prev_line_end, anno_start - 1)
+        if prev_line:match("^%s*%-%-%-") then
+          anno_start = prev_line_end - 1
+        else
+          break
+        end
+      end
+      content = content .. "\n" .. source:sub(anno_start, func_end - 1)
+      search_start = func_end
+    else
+      content = content .. "\n" .. source:sub(func_start)
+      break
+    end
+  end
+
+  return content
+end
+
+--- Parse a module from definitions.lua source.
+local function parse_module(source: string, module_name: string): ModuleDecl
+  local content = extract_module_content(source, module_name)
+  if not content then
+    return nil
+  end
+
+  local module: ModuleDecl = {
+    name = module_name,
+    description = {},
+    functions = {},
+    classes = {},
+    constants = {},
+  }
+
+  -- Split into lines for easier parsing
+  local lines: {string} = {}
+  for line in content:gmatch("[^\n]+") do
+    table.insert(lines, line)
+  end
+
+  local anno_lines: {string} = {}
+  local i = 1
+
+  while i <= #lines do
+    local line = lines[i]
+
+    -- Collect annotation lines
+    if line:match("^%s*%-%-%-") or line:match("^%-%-%-") then
+      table.insert(anno_lines, line)
+      i = i + 1
+    -- Parse constant: NAME = value, or NAME = nil,
+    elseif line:match("^%s*([A-Z][A-Z0-9_]*)%s*=%s*") then
+      local name = line:match("^%s*([A-Z][A-Z0-9_]*)%s*=")
+      if name then
+        -- Check if constant already exists (skip duplicates)
+        local already_exists = false
+        for _, c in ipairs(module.constants) do
+          if c.name == name then
+            already_exists = true
+            break
+          end
+        end
+        if not already_exists then
+          local desc, _, returns, _, _ = parse_annotations(anno_lines)
+          local const_type = "integer"
+          if #returns > 0 and returns[1].description == "type" then
+            const_type = returns[1].return_type
+          end
+          table.insert(module.constants, {
+            name = name,
+            const_type = const_type,
+            description = desc,
+          })
+        end
+      end
+      anno_lines = {}
+      i = i + 1
+    -- Parse function: function module.name(params) end
+    elseif line:match("^function%s+" .. module_name .. "%.([%w_]+)%s*%(") then
+      local fname = line:match("^function%s+" .. module_name .. "%.([%w_]+)%s*%(")
+      local params_str = line:match("%((.-)%)")
+      local desc, params, returns, nodiscard, _ = parse_annotations(anno_lines)
+
+      local func: FuncDecl = {
+        name = fname,
+        module = module_name,
+        description = desc,
+        params = params,
+        returns = returns,
+        is_method = false,
+        nodiscard = nodiscard,
+      }
+      table.insert(module.functions, func)
+      anno_lines = {}
+      i = i + 1
+    -- Parse method: function Class:method(params) end (class may include module prefix like unix.Memory)
+    elseif line:match("^function%s+([%w_%.]+):([%w_]+)%s*%(") then
+      local full_class_name, method_name = line:match("^function%s+([%w_%.]+):([%w_]+)%s*%(")
+      -- Extract just the class name without module prefix
+      local class_name = full_class_name:match("%.([%w_]+)$") or full_class_name
+      local desc, params, returns, nodiscard, _ = parse_annotations(anno_lines)
+
+      local method: FuncDecl = {
+        name = method_name,
+        module = module_name,
+        description = desc,
+        params = params,
+        returns = returns,
+        is_method = true,
+        class_name = class_name,
+        nodiscard = nodiscard,
+      }
+
+      -- Find or create the class
+      local found = false
+      for _, cls in ipairs(module.classes) do
+        if cls.name == class_name then
+          table.insert(cls.methods, method)
+          found = true
+          break
+        end
+      end
+      if not found then
+        table.insert(module.classes, {
+          name = class_name,
+          module = module_name,
+          fields = {},
+          methods = {method},
+          description = {},
+        })
+      end
+      anno_lines = {}
+      i = i + 1
+    -- Parse class annotation followed by local or assignment
+    elseif line:match("^%-%-%-@class%s+") then
+      local class_annotation = line:match("^%-%-%-@class%s+([%w_%.]+)")
+      if class_annotation then
+        -- Remove module prefix if present
+        local class_name = class_annotation:match("%.([%w_]+)$") or class_annotation
+        local desc, _, _, _, _ = parse_annotations(anno_lines)
+        table.insert(desc, 1, line:match("^%-%-%-@class%s+(.*)$") or "")
+
+        -- Check if class already exists
+        local found = false
+        for _, cls in ipairs(module.classes) do
+          if cls.name == class_name then
+            found = true
+            break
+          end
+        end
+        if not found then
+          table.insert(module.classes, {
+            name = class_name,
+            module = module_name,
+            fields = {},
+            methods = {},
+            description = desc,
+          })
+        end
+      end
+      anno_lines = {}
+      i = i + 1
+    else
+      -- Not a recognized pattern, clear annotations and move on
+      anno_lines = {}
+      i = i + 1
+    end
+  end
+
+  return module
+end
+
+--- Generate Teal .d.tl content for a module.
+local function generate_dtl(module: ModuleDecl): string
+  local out: {string} = {}
+
+  -- Header comment
+  table.insert(out, "-- type declarations for cosmo." .. module.name)
+  table.insert(out, "")
+
+  -- Generate sub-records (classes) first
+  for _, cls in ipairs(module.classes) do
+    -- Skip if it's just a placeholder with no methods
+    if #cls.methods > 0 or #cls.fields > 0 then
+      table.insert(out, "local record " .. cls.name)
+      -- Methods
+      for _, method in ipairs(cls.methods) do
+        local params_parts: {string} = {"self: " .. cls.name}
+        for _, p in ipairs(method.params) do
+          local ptype = convert_type(p.param_type)
+          -- Handle variadic params (named "...")
+          if p.name == "..." then
+            table.insert(params_parts, "...: " .. ptype)
+          else
+            local opt = p.optional and "?" or ""
+            table.insert(params_parts, p.name .. opt .. ": " .. ptype)
+          end
+        end
+        local params_str = table.concat(params_parts, ", ")
+
+        local ret_str = ""
+        if #method.returns > 0 then
+          local ret_types: {string} = {}
+          for _, r in ipairs(method.returns) do
+            if r.description ~= "type" then
+              table.insert(ret_types, convert_type(r.return_type))
+            end
+          end
+          if #ret_types > 0 then
+            ret_str = ": " .. table.concat(ret_types, ", ")
+          end
+        end
+
+        table.insert(out, "  " .. method.name .. ": function(" .. params_str .. ")" .. ret_str)
+      end
+      table.insert(out, "end")
+      table.insert(out, "")
+    end
+  end
+
+  -- Generate main module record
+  table.insert(out, "local record " .. module.name)
+
+  -- Constants
+  if #module.constants > 0 then
+    for _, c in ipairs(module.constants) do
+      table.insert(out, "  " .. c.name .. ": " .. convert_type(c.const_type))
+    end
+    if #module.functions > 0 then
+      table.insert(out, "")
+    end
+  end
+
+  -- Functions
+  for _, func in ipairs(module.functions) do
+    local params_parts: {string} = {}
+    for _, p in ipairs(func.params) do
+      local ptype = convert_type(p.param_type)
+      -- Handle variadic params (named "...")
+      if p.name == "..." then
+        table.insert(params_parts, "...: " .. ptype)
+      else
+        local opt = p.optional and "?" or ""
+        table.insert(params_parts, p.name .. opt .. ": " .. ptype)
+      end
+    end
+    local params_str = table.concat(params_parts, ", ")
+
+    local ret_str = ""
+    if #func.returns > 0 then
+      local ret_types: {string} = {}
+      for _, r in ipairs(func.returns) do
+        if r.description ~= "type" then
+          table.insert(ret_types, convert_type(r.return_type))
+        end
+      end
+      if #ret_types > 0 then
+        ret_str = ": " .. table.concat(ret_types, ", ")
+      end
+    end
+
+    table.insert(out, "  " .. func.name .. ": function(" .. params_str .. ")" .. ret_str)
+  end
+
+  table.insert(out, "end")
+  table.insert(out, "")
+  table.insert(out, "return " .. module.name)
+  table.insert(out, "")
+
+  return table.concat(out, "\n")
+end
+
+local record Result
+  success: boolean
+  output: string
+  error: string
+end
+
+--- Run the generator for a specific module or all modules.
+local function run(module_name: string): Result
+  -- Read definitions.lua from the embedded zip
+  local source = cosmo.Slurp("/zip/.lua/definitions.lua")
+  if not source then
+    return {success = false, error = "Failed to read /zip/.lua/definitions.lua"}
+  end
+
+  if module_name then
+    -- Generate for a specific module
+    local found = false
+    for _, m in ipairs(MODULES) do
+      if m == module_name then
+        found = true
+        break
+      end
+    end
+    if not found then
+      return {success = false, error = "Unknown module: " .. module_name}
+    end
+
+    local module = parse_module(source, module_name)
+    if not module then
+      return {success = false, error = "Failed to parse module: " .. module_name}
+    end
+
+    local output = generate_dtl(module)
+    return {success = true, output = output}
+  else
+    -- Generate for all modules
+    local outputs: {string} = {}
+    for _, m in ipairs(MODULES) do
+      local module = parse_module(source, m)
+      if module then
+        table.insert(outputs, "-- === " .. m .. " ===")
+        table.insert(outputs, generate_dtl(module))
+      end
+    end
+    return {success = true, output = table.concat(outputs, "\n")}
+  end
+end
+
+--- Get list of modules to generate.
+local function get_modules(): {string}
+  return MODULES
+end
+
+local record GenTypeModule
+  run: function(module_name?: string): Result
+  parse_module: function(source: string, module_name: string): ModuleDecl
+  generate_dtl: function(module: ModuleDecl): string
+  convert_type: function(t: string): string
+  get_modules: function(): {string}
+  MODULES: {string}
+end
+
+local M: GenTypeModule = {
+  run = run,
+  parse_module = parse_module,
+  generate_dtl = generate_dtl,
+  convert_type = convert_type,
+  get_modules = get_modules,
+  MODULES = MODULES,
+}
+
+-- Main entry point when run as script
+cosmic.main(function(args: {string}): number, string
+  local module_name = args[1]
+  local result = run(module_name)
+  if result.success then
+    print(result.output)
+    return 0
+  else
+    return 1, result.error
+  end
+end)
+
+return M
