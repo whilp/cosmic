@@ -26,6 +26,7 @@ local record SpawnOpts
   stdout: number
   stderr: number
   env: {string}
+  cwd: string
 end
 
 local function make_pipe(fd: number): Pipe
@@ -141,6 +142,14 @@ local function spawn(argv: {string}, opts?: SpawnOpts): SpawnHandle, string
       unix.close(stderr_r)
       unix.dup(stderr_w)
       unix.close(stderr_w)
+    end
+
+    -- change working directory if specified
+    if opts.cwd then
+      if not unix.chdir(opts.cwd) then
+        -- chdir failed, exit with error code
+        os.exit(126)
+      end
     end
 
     local env = opts.env or unix.environ()

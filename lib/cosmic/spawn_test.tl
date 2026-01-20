@@ -135,3 +135,16 @@ local function test_fd_passthrough_stderr()
   assert(content == "written", "expected 'written', got '" .. tostring(content) .. "'")
 end
 test_fd_passthrough_stderr()
+
+local function test_cwd_option()
+  -- test that cwd option changes the working directory of spawned process
+  -- Use pwd command to verify the working directory
+  local handle = spawn({"pwd"}, {cwd = TEST_TMPDIR})
+  assert(handle ~= nil, "handle should not be nil")
+  local ok, out, exit_code = handle:read()
+  assert(ok, "command should succeed, exit code: " .. tostring(exit_code) .. ", output: '" .. tostring(out) .. "'")
+  -- pwd output includes a trailing newline
+  local pwd_output = out:gsub("\n$", "")
+  assert(pwd_output == TEST_TMPDIR, "expected pwd to be '" .. TEST_TMPDIR .. "', got '" .. tostring(pwd_output) .. "'")
+end
+test_cwd_option()
