@@ -323,7 +323,14 @@ local function main(): integer, string
   -- Handle --doc
   if opts.doc then
     local doc = require("cosmic.doc")
-    local ok, output = doc.render_file(opts.doc)
+    local ok: boolean
+    local output: string
+    -- Use dtl parser for .d.tl files, regular parser for .tl files
+    if opts.doc:match("%.d%.tl$") then
+      ok, output = doc.render_dtl_file(opts.doc)
+    else
+      ok, output = doc.render_file(opts.doc)
+    end
     if ok then
       io.write(output)
       return 0
