@@ -1,8 +1,8 @@
 local record tl
   record Error
     filename: string
-    y: integer
-    x: integer
+    y: number
+    x: number
     msg: string
   end
 
