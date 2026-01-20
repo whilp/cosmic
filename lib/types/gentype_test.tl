@@ -163,6 +163,76 @@ local function test_drift_detection_path()
   print("test_drift_detection_path: PASS (basic check)")
 end
 
+-- Validate that hardcoded module list matches definitions.lua
+local function test_module_list_completeness()
+  local source = cosmo.Slurp("/zip/.lua/definitions.lua")
+  assert(source, "Failed to read definitions.lua")
+
+  -- Find all modules in definitions.lua by looking for lines like "modulename = {"
+  -- Accept both "module = {" and "module={"
+  -- Pattern must match module names with numbers (e.g., lsqlite3, argon2)
+  local found_modules: {string} = {}
+  for line in source:gmatch("[^\n]+") do
+    local module_name = line:match("^([a-z0-9_]+)%s*=%s*%{")
+    if module_name then
+      table.insert(found_modules, module_name)
+    end
+  end
+
+  -- Sort both lists for comparison
+  table.sort(found_modules)
+
+  local hardcoded = gentype.get_modules()
+  local hardcoded_sorted: {string} = {}
+  for _, m in ipairs(hardcoded) do
+    table.insert(hardcoded_sorted, m)
+  end
+  table.sort(hardcoded_sorted)
+
+  -- Check for missing modules
+  local missing: {string} = {}
+  for _, m in ipairs(found_modules) do
+    local found = false
+    for _, h in ipairs(hardcoded_sorted) do
+      if m == h then
+        found = true
+        break
+      end
+    end
+    if not found then
+      table.insert(missing, m)
+    end
+  end
+
+  -- Check for extra modules
+  local extra: {string} = {}
+  for _, h in ipairs(hardcoded_sorted) do
+    local found = false
+    for _, m in ipairs(found_modules) do
+      if h == m then
+        found = true
+        break
+      end
+    end
+    if not found then
+      table.insert(extra, h)
+    end
+  end
+
+  if #missing > 0 then
+    local msg = "Missing modules in gentype.tl MODULES list: " .. table.concat(missing, ", ")
+    msg = msg .. "\nUpdate lib/types/gentype.tl MODULES and cook.mk type_modules"
+    error(msg)
+  end
+
+  if #extra > 0 then
+    local msg = "Extra modules in gentype.tl MODULES list (not in definitions.lua): " .. table.concat(extra, ", ")
+    error(msg)
+  end
+
+  print("test_module_list_completeness: PASS (found: " .. table.concat(found_modules, ", ") .. ")")
+end
+
 -- Run all tests
 local function run_tests()
   test_convert_type()
@@ -171,6 +241,7 @@ local function run_tests()
   test_generate_dtl()
   test_run()
   test_get_modules()
+  test_module_list_completeness()
   test_drift_detection_path()
 
   print("\nAll tests passed!")
