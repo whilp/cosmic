@@ -85,13 +85,17 @@ local record ModuleDoc
 end
 ```
 
+### RecordName
+
 ### DocModule
 
 ```teal
 local record DocModule
   parse: function(source: string, file_path: string): ModuleDoc
+  parse_dtl: function(source: string, file_path: string): ModuleDoc
   render: function(doc: ModuleDoc): string
   render_file: function(file_path: string): boolean, string
+  render_dtl_file: function(file_path: string): boolean, string
 end
 ```
 
@@ -132,6 +136,24 @@ function render(doc: ModuleDoc): string
 
 - string - Formatted markdown documentation
 
+### parse_dtl
+
+```teal
+function parse_dtl(source: string, file_path: string): ModuleDoc
+```
+
+ Parse a .d.tl type declaration file and extract documentation.
+ Extracts records, their fields, methods, and documentation comments.
+
+**Parameters:**
+
+- `source` (string) - The source code to parse
+- `file_path` (string) - Path to the file being parsed
+
+**Returns:**
+
+- ModuleDoc - Complete documentation for the module
+
 ### render_file
 
 ```teal
@@ -144,6 +166,24 @@ function render_file(file_path: string): boolean, string
 **Parameters:**
 
 - `file_path` (string) - Path to the Teal file to document
+
+**Returns:**
+
+- boolean - Success status
+- string - Markdown documentation on success, error message on failure
+
+### render_dtl_file
+
+```teal
+function render_dtl_file(file_path: string): boolean, string
+```
+
+ Main entry point for .d.tl files: parse and render markdown.
+ Reads a Teal type declaration file and renders documentation as markdown.
+
+**Parameters:**
+
+- `file_path` (string) - Path to the .d.tl file to document
 
 **Returns:**
 

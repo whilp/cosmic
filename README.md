@@ -6,6 +6,16 @@ This branch contains auto-generated documentation from the cosmic-lua source cod
 
 | Module | Description |
 |--------|-------------|
+| [argon2](cosmo/argon2.md) | Type declarations for the `argon2` module. |
+| [finger](cosmo/finger.md) | Type declarations for the `finger` module. |
+| [getopt](cosmo/getopt.md) | Type declarations for the `getopt` module. |
+| [goodsocket](cosmo/goodsocket.md) | Type declarations for the `goodsocket` module. |
+| [lsqlite3](cosmo/lsqlite3.md) | Type declarations for the `lsqlite3` module. |
+| [maxmind](cosmo/maxmind.md) | Type declarations for the `maxmind` module. |
+| [path](cosmo/path.md) | Type declarations for the `path` module. |
+| [re](cosmo/re.md) | Type declarations for the `re` module. |
+| [unix](cosmo/unix.md) | Type declarations for the `unix` module. |
+| [zip](cosmo/zip.md) |  |
 | [doc](lib/cosmic/doc.md) |  Extract documentation from Teal files and render as markdown. |
 | [embed](lib/cosmic/embed.md) |  Embed files into cosmic executable. |
 | [example](lib/cosmic/example.md) |  Go-style executable example testing. |
