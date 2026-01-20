@@ -202,22 +202,21 @@ $(o)/%.tl.example.got: %.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@set +e; $(cosmic_bin) --example $< > $(basename $@).out 2> $(basename $@).err; echo $$? > $@
 
-# Type definition regeneration
-type_modules := unix path getopt lsqlite3 re maxmind finger argon2
-type_outputs := $(patsubst %,lib/types/cosmo/%.d.tl,$(type_modules))
+# Type definition regeneration using bootstrap cosmic
+# Variables defined in cook.mk
+# .d.tl files are checked into the repo and regenerated manually when definitions.lua changes
 
 .PHONY: regen-types
-## Regenerate .d.tl type definitions from cosmopolitan definitions.lua
-regen-types: $(cosmic_bin)
-	@echo "Regenerating type definitions..."
+## Regenerate .d.tl type definitions from cosmopolitan definitions.lua using bootstrap cosmic
+regen-types: | $(bootstrap_cosmic) $(cosmos_staged)
+	@echo "Regenerating type definitions using bootstrap cosmic..."
 	@for mod in $(type_modules); do \
-		echo "  $$mod.d.tl"; \
-		$(cosmic_bin) -e "print(require('types.gentype').run('$$mod').output)" > lib/types/cosmo/$$mod.d.tl; \
+		if ! echo "$(type_manual_fixes)" | grep -q "lib/types/cosmo/$$mod.d.tl"; then \
+			echo "  $$mod.d.tl"; \
+			$(bootstrap_cosmic) -e "print(require('types.gentype').run('$$mod').output)" > lib/types/cosmo/$$mod.d.tl; \
+		fi \
 	done
-	@# Restore manually-fixed files
-	@echo "Restoring manual fixes to unix.d.tl and getopt.d.tl..."
-	@git checkout HEAD -- lib/types/cosmo/unix.d.tl lib/types/cosmo/getopt.d.tl || true
-	@echo "Type definitions regenerated."
+	@echo "Type definitions regenerated (unix.d.tl and getopt.d.tl preserved with manual fixes)."
 
 # Documentation generation - render .tl files as markdown
 all_docs := $(patsubst %.tl,$(o)/docs/%.md,$(all_example_srcs))
