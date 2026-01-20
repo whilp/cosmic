@@ -202,12 +202,13 @@ $(o)/%.tl.example.got: %.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@set +e; $(cosmic_bin) --example $< > $(basename $@).out 2> $(basename $@).err; echo $$? > $@
 
-# Type definition regeneration using bootstrap cosmic
+# Type definition regeneration (manual maintenance task)
+# .d.tl files are checked into the repo and are the source of truth for docs and types.
+# This target is only needed when cosmopolitan's definitions.lua changes.
 # Variables defined in cook.mk
-# .d.tl files are checked into the repo and regenerated manually when definitions.lua changes
 
 .PHONY: regen-types
-## Regenerate .d.tl type definitions from cosmopolitan definitions.lua using bootstrap cosmic
+## Regenerate .d.tl type definitions from cosmopolitan definitions.lua (manual maintenance)
 regen-types: | $(bootstrap_cosmic) $(cosmos_staged)
 	@echo "Regenerating type definitions using bootstrap cosmic..."
 	@for mod in $(type_modules); do \
@@ -221,11 +222,20 @@ regen-types: | $(bootstrap_cosmic) $(cosmos_staged)
 # Documentation generation - render .tl files as markdown
 all_docs := $(patsubst %.tl,$(o)/docs/%.md,$(all_example_srcs))
 
+# Documentation from .d.tl type definition files (cosmo modules)
+dtl_files := $(wildcard lib/types/cosmo/*.d.tl)
+dtl_docs := $(patsubst lib/types/cosmo/%.d.tl,$(o)/docs/cosmo/%.md,$(dtl_files))
+all_docs += $(dtl_docs)
+
 .PHONY: docs
 ## Generate documentation from source
 docs: $(all_docs)
 
 $(o)/docs/%.md: %.tl $(cosmic_bin) | $(bootstrap_files)
+	@mkdir -p $(@D)
+	@$(cosmic_bin) --doc $< > $@
+
+$(o)/docs/cosmo/%.md: lib/types/cosmo/%.d.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@$(cosmic_bin) --doc $< > $@
 

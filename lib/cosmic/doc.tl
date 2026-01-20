@@ -501,7 +501,8 @@ local function render(doc: ModuleDoc): string
   local lines: {string} = {}
 
   -- Module header
-  local module_name = doc.file:match("([^/]+)%.tl$") or doc.file
+  -- Handle both .tl and .d.tl extensions
+  local module_name = doc.file:match("([^/]+)%.d%.tl$") or doc.file:match("([^/]+)%.tl$") or doc.file
   table.insert(lines, "# " .. module_name)
   table.insert(lines, "")
 
@@ -670,6 +671,205 @@ local function render(doc: ModuleDoc): string
   return table.concat(lines, "\n")
 end
 
+--- Parse a .d.tl type declaration file and extract documentation.
+--- Extracts records, their fields, methods, and documentation comments.
+--- @param source string The source code to parse
+--- @param file_path string Path to the file being parsed
+--- @return ModuleDoc Complete documentation for the module
+local function parse_dtl(source: string, file_path: string): ModuleDoc
+  local doc: ModuleDoc = {
+    file = file_path,
+    module_doc = nil,
+    functions = {},
+    records = {},
+    examples = {},
+  }
+
+  -- Extract module name from first comment line: -- type declarations for cosmo.xxx
+  local module_name = source:match("^%-%- type declarations for cosmo%.([%w_]+)")
+  if module_name then
+    doc.module_doc = "Type declarations for the `" .. module_name .. "` module."
+  end
+
+  -- Track the main module record (the one returned at the end)
+  local return_record = source:match("return%s+([%w_]+)%s*$")
+
+  -- Parse all record definitions
+  local pos = 1
+  while pos <= #source do
+    -- Find "local record RecordName"
+    local rec_start, rec_end, rec_name = source:find("local%s+record%s+([%w_]+)", pos)
+    if not rec_start then break end
+
+    -- Find the matching "end" for this record
+    local depth = 1
+    local i = rec_end + 1
+    local record_body_start = i
+
+    while i <= #source and depth > 0 do
+      -- Skip strings
+      if source:sub(i, i) == '"' or source:sub(i, i) == "'" then
+        local quote = source:sub(i, i)
+        i = i + 1
+        while i <= #source do
+          if source:sub(i, i) == "\\" then
+            i = i + 2
+          elseif source:sub(i, i) == quote then
+            i = i + 1
+            break
+          else
+            i = i + 1
+          end
+        end
+      -- Skip comments
+      elseif source:sub(i, i+1) == "--" then
+        local newline = source:find("\n", i)
+        i = newline and newline + 1 or #source + 1
+      else
+        local word_start, word_end, word = source:find("(%a+)", i)
+        if word_start == i then
+          if word == "record" or word == "enum" then
+            depth = depth + 1
+          elseif word == "end" then
+            depth = depth - 1
+          end
+          i = word_end + 1
+        else
+          i = i + 1
+        end
+      end
+    end
+
+    local record_body_end = i - 4  -- before "end"
+    local record_body = source:sub(record_body_start, record_body_end)
+
+    -- Extract doc comment before the record
+    local rec_doc = extract_doc_comment(source, rec_start)
+    local _, _, rec_description = parse_annotations(rec_doc)
+
+    -- Parse fields and methods from the record body
+    local fields: {{string, string, string}} = {}
+    local methods: {FunctionDoc} = {}
+
+    -- Process each line in the record body
+    local line_start = 1
+    while line_start <= #record_body do
+      local line_end = record_body:find("\n", line_start) or #record_body + 1
+      local line = record_body:sub(line_start, line_end - 1)
+
+      -- Check if this line is a field/method declaration: name: type
+      local field_name, field_type = line:match("^%s*([%w_]+):%s*(.+)%s*$")
+      if field_name and not line:match("^%s*%-%-") then
+        -- Extract doc comment before this field
+        local field_absolute_pos = record_body_start + line_start - 1
+        local field_doc = extract_doc_comment(source, field_absolute_pos)
+
+        -- Check if it's a function type
+        if field_type:match("^function") then
+          local params, returns, description = parse_annotations(field_doc)
+
+          -- Parse parameters from the function signature if not in doc comments
+          if #params == 0 then
+            local sig_params = field_type:match("^function%((.-)%)")
+            if sig_params and sig_params ~= "" then
+              for param_part in sig_params:gmatch("[^,]+") do
+                param_part = param_part:match("^%s*(.-)%s*$")
+                -- Handle "self: Type" for methods
+                if not param_part:match("^self:") then
+                  local pname, ptype = param_part:match("^([%w_%.]+)%??:%s*(.+)$")
+                  if pname then
+                    -- Handle variadic: ...: type
+                    if pname == "..." then
+                      pname = "..."
+                    end
+                    table.insert(params, {
+                      name = pname,
+                      param_type = ptype,
+                      description = nil,
+                    })
+                  end
+                end
+              end
+            end
+          end
+
+          -- Parse return type from signature if not in doc comments
+          if #returns == 0 then
+            local ret_type = field_type:match("%):%s*(.+)$")
+            if ret_type then
+              -- Handle multiple return values
+              for ret_part in ret_type:gmatch("[^,]+") do
+                ret_part = ret_part:match("^%s*(.-)%s*$")
+                if ret_part ~= "" then
+                  table.insert(returns, {
+                    return_type = ret_part,
+                    description = nil,
+                  })
+                end
+              end
+            end
+          end
+
+          table.insert(methods, {
+            name = field_name,
+            description = description,
+            params = params,
+            returns = returns,
+            signature = field_type:match("^function(.+)$") or "()",
+            line = 0,
+            is_local = false,
+          })
+        else
+          -- Regular field
+          local _, _, field_description = parse_annotations(field_doc)
+          table.insert(fields, {field_name, field_type, field_description or ""})
+        end
+      end
+
+      line_start = line_end + 1
+    end
+
+    -- Determine if this is the main module record or a sub-record (class)
+    if rec_name == return_record then
+      -- Main module record - add methods as functions
+      for _, method in ipairs(methods) do
+        table.insert(doc.functions, method)
+      end
+      -- Add non-function fields as a record
+      if #fields > 0 then
+        table.insert(doc.records, {
+          name = rec_name .. " Constants",
+          description = "Constants defined in the " .. rec_name .. " module.",
+          fields = fields,
+          line = 0,
+        })
+      end
+    else
+      -- Sub-record (class type)
+      -- Convert methods to fields for display
+      local all_fields: {{string, string, string}} = {}
+      for _, f in ipairs(fields) do
+        table.insert(all_fields, f)
+      end
+      for _, m in ipairs(methods) do
+        local method_desc = m.description or ""
+        table.insert(all_fields, {m.name, "function" .. m.signature, method_desc})
+      end
+
+      table.insert(doc.records, {
+        name = rec_name,
+        description = rec_description,
+        fields = all_fields,
+        line = 0,
+      })
+    end
+
+    pos = i + 1
+  end
+
+  return doc
+end
+
 --- Main entry point: parse file and render markdown.
 --- Reads a Teal file, extracts documentation, and renders it as markdown.
 --- @param file_path string Path to the Teal file to document
@@ -690,16 +890,40 @@ local function render_file(file_path: string): boolean, string
   return true, markdown
 end
 
+--- Main entry point for .d.tl files: parse and render markdown.
+--- Reads a Teal type declaration file and renders documentation as markdown.
+--- @param file_path string Path to the .d.tl file to document
+--- @return boolean Success status
+--- @return string Markdown documentation on success, error message on failure
+local function render_dtl_file(file_path: string): boolean, string
+  local f, err = io.open(file_path, "r")
+  if not f then
+    return false, "cannot open file: " .. (err or "unknown")
+  end
+
+  local source = f:read("*a")
+  f:close()
+
+  local doc = parse_dtl(source, file_path)
+  local markdown = render(doc)
+
+  return true, markdown
+end
+
 local record DocModule
   parse: function(source: string, file_path: string): ModuleDoc
+  parse_dtl: function(source: string, file_path: string): ModuleDoc
   render: function(doc: ModuleDoc): string
   render_file: function(file_path: string): boolean, string
+  render_dtl_file: function(file_path: string): boolean, string
 end
 
 local M: DocModule = {
   parse = parse,
+  parse_dtl = parse_dtl,
   render = render,
   render_file = render_file,
+  render_dtl_file = render_dtl_file,
 }
 
 return M
