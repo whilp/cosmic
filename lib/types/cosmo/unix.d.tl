@@ -1,5 +1,8 @@
--- type declarations for cosmo.unix
+--- System calls and POSIX bindings.
+--- Low-level Unix system call interface with comprehensive POSIX support.
 
+--- Shared memory for inter-process communication.
+--- Provides atomic operations and wait/wake primitives for synchronization.
 local record Memory
   read: function(self: Memory, offset?: number, bytes?: number): string
   write: function(self: Memory, data: string, offset?: number, bytes?: number)
@@ -15,14 +18,28 @@ local record Memory
   wake: function(self: Memory, index: number, count?: number): number
 end
 
+--- Directory handle for reading directory entries.
+--- Created by `opendir()` or `fdopendir()`.
 local record Dir
+  --- Close the directory handle and release resources.
   close: function(self: Dir): boolean
+
+  --- Read the next directory entry.
+  --- Returns the filename, or nil when no more entries.
   read: function(self: Dir): string
+
+  --- Get the underlying file descriptor.
   fd: function(self: Dir): number
+
+  --- Get the current position in the directory stream.
   tell: function(self: Dir): number
+
+  --- Reset the directory stream to the beginning.
   rewind: function(self: Dir)
 end
 
+--- Resource usage statistics for a process.
+--- Contains CPU time, memory usage, I/O, and context switch counters.
 local record Rusage
   utime: function(self: Rusage): number
   stime: function(self: Rusage): number
@@ -42,25 +59,61 @@ local record Rusage
   nivcsw: function(self: Rusage)
 end
 
+--- File metadata and attributes.
+--- Contains file size, permissions, ownership, and timestamps.
+--- Use S_ISDIR(), S_ISREG(), etc. to check file type from mode.
 local record Stat
+  --- File size in bytes.
   size: function(self: Stat): number
+
+  --- File mode (type and permissions).
   mode: function(self: Stat): number
+
+  --- User ID of owner.
   uid: function(self: Stat): number
+
+  --- Group ID of owner.
   gid: function(self: Stat): number
+
+  --- Birth time (creation time) as Unix timestamp.
   birthtim: function(self: Stat): number
+
+  --- Modification time as Unix timestamp.
   mtim: function(self: Stat): number
+
+  --- Access time as Unix timestamp.
   atim: function(self: Stat): number
+
+  --- Status change time as Unix timestamp.
   ctim: function(self: Stat): number
+
+  --- Number of 512-byte blocks allocated.
   blocks: function(self: Stat): number
+
+  --- Preferred I/O block size.
   blksize: function(self: Stat): number
+
+  --- Inode number.
   ino: function(self: Stat): number
+
+  --- Device ID containing the file.
   dev: function(self: Stat): number
+
+  --- Device ID if special file.
   rdev: function(self: Stat): number
+
+  --- Number of hard links.
   nlink: function(self: Stat): any
+
+  --- Generation number.
   gen: function(self: Stat): any
+
+  --- File flags.
   flags: function(self: Stat): any
 end
 
+--- Signal set for blocking, unblocking, and waiting on signals.
+--- Used with sigprocmask(), sigaction(), and sigsuspend().
 local record Sigset
   add: function(self: Sigset, sig: number)
   remove: function(self: Sigset, sig: number)
@@ -71,12 +124,25 @@ local record Sigset
   __tostring: function(self: Sigset): string
 end
 
+--- Error information from system calls.
+--- Provides detailed error codes and human-readable descriptions.
 local record Errno
+  --- Get the errno value.
   errno: function(self: Errno): number
+
+  --- Get the Windows error code (if applicable).
   winerr: function(self: Errno): number
+
+  --- Get the symbolic error name (e.g., "ENOENT").
   name: function(self: Errno): string
+
+  --- Get the system call that failed.
   call: function(self: Errno): string
+
+  --- Get a human-readable error description.
   doc: function(self: Errno): string
+
+  --- Convert to string (delegates to doc()).
   __tostring: function(self: Errno): string
 end
 

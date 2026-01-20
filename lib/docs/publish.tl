@@ -75,23 +75,55 @@ end
 local function make_readme(docs_dir: string): string
   local docs = scan_docs(docs_dir)
 
+  -- Separate docs by package
+  local cosmo_docs: {DocInfo} = {}
+  local cosmic_docs: {DocInfo} = {}
+
+  for _, doc in ipairs(docs) do
+    if doc.path:match("^cosmo/") then
+      table.insert(cosmo_docs, doc)
+    elseif doc.path:match("^lib/cosmic/") then
+      table.insert(cosmic_docs, doc)
+    end
+  end
+
   local lines: {string} = {
     "# Generated Documentation",
     "",
     "This branch contains auto-generated documentation from the cosmic-lua source code.",
     "",
-    "## Documentation",
-    "",
-    "| Module | Description |",
-    "|--------|-------------|",
   }
 
-  for _, doc in ipairs(docs) do
-    local link = "[" .. doc.name .. "](" .. doc.path .. ")"
-    table.insert(lines, "| " .. link .. " | " .. doc.description .. " |")
+  -- cosmo package section
+  if #cosmo_docs > 0 then
+    table.insert(lines, "## cosmo Package")
+    table.insert(lines, "")
+    table.insert(lines, "Core Cosmopolitan Libc bindings and system interfaces.")
+    table.insert(lines, "")
+    table.insert(lines, "| Module | Description |")
+    table.insert(lines, "|--------|-------------|")
+    for _, doc in ipairs(cosmo_docs) do
+      local link = "[" .. doc.name .. "](" .. doc.path .. ")"
+      table.insert(lines, "| " .. link .. " | " .. doc.description .. " |")
+    end
+    table.insert(lines, "")
   end
 
-  table.insert(lines, "")
+  -- cosmic package section
+  if #cosmic_docs > 0 then
+    table.insert(lines, "## cosmic Package")
+    table.insert(lines, "")
+    table.insert(lines, "High-level utilities and tools built on top of cosmo.")
+    table.insert(lines, "")
+    table.insert(lines, "| Module | Description |")
+    table.insert(lines, "|--------|-------------|")
+    for _, doc in ipairs(cosmic_docs) do
+      local link = "[" .. doc.name .. "](" .. doc.path .. ")"
+      table.insert(lines, "| " .. link .. " | " .. doc.description .. " |")
+    end
+    table.insert(lines, "")
+  end
+
   table.insert(lines, "---")
   table.insert(lines, "")
   table.insert(lines, "Documentation is generated from Teal source files using `cosmic --doc`.")
