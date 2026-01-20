@@ -1,13 +1,14 @@
 -- type declarations for cosmo.getopt
 
-local record Parser
-  next: function(self): string, string
-  remaining: function(self): {string}
+local record parser
+  next: function(self: parser): string, string
+  remaining: function(self: parser): {string}
+  unknown: function(self: parser): {string}
 end
 
 local record getopt
-  type LongOpt = {string, string, string}
-  new: function(args: {string}, shortopts: string, longopts: {LongOpt}): Parser
+  new: function(args: {string}, optstring: string, longopts?: {table}): parser
 end
 
 return getopt
+

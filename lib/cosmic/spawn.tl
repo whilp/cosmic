@@ -152,7 +152,16 @@ local function spawn(argv: {string}, opts?: SpawnOpts): SpawnHandle, string
       end
     end
 
-    local env = opts.env or unix.environ()
+    local env: {string}
+    if opts.env then
+      env = opts.env
+    else
+      -- Convert environ map to array format
+      env = {}
+      for key, val in pairs(unix.environ() as {string:string}) do
+        table.insert(env, key .. "=" .. val)
+      end
+    end
     if (argv[1] as string):find("/") then
       unix.execve(argv[1], argv, env)
     else

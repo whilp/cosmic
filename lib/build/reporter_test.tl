@@ -28,8 +28,8 @@ local function run_reporter(...: string): integer, string, string
   local spawn = require("cosmic.spawn").spawn
   local args: {string} = {path.join(test_bin, "cosmic"), "--", reporter}
   local varargs: {string} = {...}
-  for _, arg in ipairs(varargs) do
-    table.insert(args, arg)
+  for _, a in ipairs(varargs) do
+    table.insert(args, a)
   end
 
   local lua_path = os.getenv("LUA_PATH") or ""
