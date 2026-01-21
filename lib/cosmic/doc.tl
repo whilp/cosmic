@@ -881,8 +881,6 @@ local record DocModule
   parse_dtl: function(source: string, file_path: string): ModuleDoc
   render: function(doc: ModuleDoc): string
   render_file: function(file_path: string): boolean, string
-  -- render_dtl_file is now an alias for render_file (auto-detects file type)
-  render_dtl_file: function(file_path: string): boolean, string
 end
 
 local M: DocModule = {
@@ -890,7 +888,6 @@ local M: DocModule = {
   parse_dtl = parse_dtl,
   render = render,
   render_file = render_file,
-  render_dtl_file = render_file,  -- alias for backward compatibility
 }
 
 return M
