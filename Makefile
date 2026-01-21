@@ -217,7 +217,7 @@ regen-types: | $(bootstrap_cosmic) $(cosmos_staged)
 			$(bootstrap_cosmic) -e "print(require('types.gentype').run('$$mod').output)" > lib/types/cosmo/$$mod.d.tl; \
 		fi \
 	done
-	@echo "Type definitions regenerated (unix.d.tl and getopt.d.tl preserved with manual fixes)."
+	@echo "Type definitions regenerated (zip.d.tl preserved with manual fixes)."
 
 # Documentation generation - render .tl files as markdown
 all_docs := $(patsubst %.tl,$(o)/docs/%.md,$(all_example_srcs))
