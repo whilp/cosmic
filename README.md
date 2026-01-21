@@ -131,16 +131,16 @@ Core Cosmopolitan Libc bindings and system interfaces.
 
 | Module | Description |
 |--------|-------------|
-| [argon2](https://github.com/whilp/cosmic/blob/docs/cosmo/argon2.md) | Type declarations for the `argon2` module. |
-| [finger](https://github.com/whilp/cosmic/blob/docs/cosmo/finger.md) | Type declarations for the `finger` module. |
-| [getopt](https://github.com/whilp/cosmic/blob/docs/cosmo/getopt.md) | Type declarations for the `getopt` module. |
-| [goodsocket](https://github.com/whilp/cosmic/blob/docs/cosmo/goodsocket.md) | Type declarations for the `goodsocket` module. |
-| [lsqlite3](https://github.com/whilp/cosmic/blob/docs/cosmo/lsqlite3.md) | Type declarations for the `lsqlite3` module. |
-| [maxmind](https://github.com/whilp/cosmic/blob/docs/cosmo/maxmind.md) | Type declarations for the `maxmind` module. |
-| [path](https://github.com/whilp/cosmic/blob/docs/cosmo/path.md) | Type declarations for the `path` module. |
-| [re](https://github.com/whilp/cosmic/blob/docs/cosmo/re.md) | Type declarations for the `re` module. |
-| [unix](https://github.com/whilp/cosmic/blob/docs/cosmo/unix.md) | Type declarations for the `unix` module. |
-| [zip](https://github.com/whilp/cosmic/blob/docs/cosmo/zip.md) | Type declarations for the `zip` module. |
+| [argon2](https://github.com/whilp/cosmic/blob/docs/cosmo/argon2.md) | Password hashing using the Argon2 algorithm. |
+| [finger](https://github.com/whilp/cosmic/blob/docs/cosmo/finger.md) | TCP SYN packet fingerprinting. |
+| [getopt](https://github.com/whilp/cosmic/blob/docs/cosmo/getopt.md) | Command-line option parsing. |
+| [goodsocket](https://github.com/whilp/cosmic/blob/docs/cosmo/goodsocket.md) | Low-level socket programming with network constants. |
+| [lsqlite3](https://github.com/whilp/cosmic/blob/docs/cosmo/lsqlite3.md) | SQLite3 database bindings. |
+| [maxmind](https://github.com/whilp/cosmic/blob/docs/cosmo/maxmind.md) | MaxMind GeoIP database lookups. |
+| [path](https://github.com/whilp/cosmic/blob/docs/cosmo/path.md) | File path manipulation utilities. |
+| [re](https://github.com/whilp/cosmic/blob/docs/cosmo/re.md) | POSIX regular expression matching. |
+| [unix](https://github.com/whilp/cosmic/blob/docs/cosmo/unix.md) | POSIX system interfaces and shared memory. |
+| [zip](https://github.com/whilp/cosmic/blob/docs/cosmo/zip.md) | ZIP archive reading and writing. |
 
 ### cosmic Package
 
