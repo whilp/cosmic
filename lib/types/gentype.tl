@@ -335,6 +335,16 @@ local function extract_module_content(source: string, module_name: string): stri
   -- Find all related function declarations after the module table
   -- Look for function module.name() or function module.Class:method()
   local search_start = end_pos
+
+  -- Find the first function to determine where to start full extraction
+  local first_func = source:find("\nfunction " .. module_name .. "%.", search_start)
+  if first_func then
+    -- Include everything from module table end to the first function
+    -- This captures standalone @class blocks like OpenOptions
+    content = content .. source:sub(end_pos, first_func - 1)
+    search_start = first_func
+  end
+
   while true do
     -- Find next function for this module (pattern: function module.anything)
     local func_start = source:find("\nfunction " .. module_name .. "%.", search_start)
@@ -358,18 +368,8 @@ local function extract_module_content(source: string, module_name: string): stri
     end
 
     if func_end then
-      -- Include any annotations before the function
-      local anno_start = func_start
-      while anno_start > search_start do
-        local prev_line_end = source:sub(1, anno_start - 1):match(".*\n()") or 1
-        local prev_line = source:sub(prev_line_end, anno_start - 1)
-        if prev_line:match("^%s*%-%-%-") then
-          anno_start = prev_line_end - 1
-        else
-          break
-        end
-      end
-      content = content .. "\n" .. source:sub(anno_start, func_end - 1)
+      -- Include from function start to end (annotations already included above)
+      content = content .. "\n" .. source:sub(func_start, func_end - 1)
       search_start = func_end
     else
       content = content .. "\n" .. source:sub(func_start)
@@ -386,6 +386,7 @@ local function parse_module(source: string, module_name: string): ModuleDecl
   if not content then
     return nil
   end
+
 
   local module: ModuleDecl = {
     name = module_name,
@@ -410,9 +411,47 @@ local function parse_module(source: string, module_name: string): ModuleDecl
 
     -- Collect annotation lines
     if line:match("^%s*%-%-%-") or line:match("^%-%-%-") then
+      -- Check if this is a NEW @class line while we're already in a class block
+      if line:match("^%-%-%-@class%s+") and in_class_block and #anno_lines > 0 then
+        -- Process the previous @class block before starting a new one
+        local desc, _, _, _, class_annotation, fields = parse_annotations(anno_lines)
+        if class_annotation then
+          local class_name = class_annotation:match("%.([%w_]+)$") or class_annotation
+          local filtered_desc: {string} = {}
+          for _, d in ipairs(desc) do
+            if not d:match("^@class") then
+              table.insert(filtered_desc, d)
+            end
+          end
+
+          local found = false
+          for _, cls in ipairs(module.classes) do
+            if cls.name == class_name then
+              found = true
+              for _, field in ipairs(fields) do
+                table.insert(cls.fields, field)
+              end
+              break
+            end
+          end
+          if not found then
+            table.insert(module.classes, {
+              name = class_name,
+              module = module_name,
+              fields = fields,
+              methods = {},
+              description = filtered_desc,
+            })
+          end
+        end
+        -- Clear anno_lines and start collecting the new class
+        anno_lines = {}
+      end
+
       table.insert(anno_lines, line)
       -- Check if this is a @class line - if so, keep collecting annotations
       if line:match("^%-%-%-@class%s+") then
+        local cls_name = line:match("@class%s+([%w_%.]+)")
         in_class_block = true
       end
       i = i + 1
@@ -449,36 +488,53 @@ local function parse_module(source: string, module_name: string): ModuleDecl
       local params_str = line:match("%((.-)%)")
 
       -- Check if there's a @class in the annotations - if so, split and process separately
-      local class_idx = 0
+      local class_start_idx = 0
       for idx, anno_line in ipairs(anno_lines) do
         if anno_line:match("^%-%-%-@class%s+") then
-          class_idx = idx
+          class_start_idx = idx
           break
         end
       end
 
-      if class_idx > 0 then
-        -- Split annotations: class block is from class_idx to end of @field lines
+      if class_start_idx > 0 then
+        -- Split annotations into class block and function block
         local class_lines: {string} = {}
         local func_lines: {string} = {}
-        local in_field_section = false
 
-        for idx, anno_line in ipairs(anno_lines) do
-          if idx < class_idx then
-            -- Lines before @class go to function
-            table.insert(func_lines, anno_line)
-          elseif anno_line:match("^%-%-%-@class%s+") or anno_line:match("^%-%-%-@field%s+") then
-            -- @class and @field lines go to class
-            table.insert(class_lines, anno_line)
-            in_field_section = true
-          elseif in_field_section and anno_line:match("^%-%-%-$") then
-            -- Blank comment line in field section still belongs to class
-            table.insert(class_lines, anno_line)
-          else
-            -- Everything else goes to function
-            table.insert(func_lines, anno_line)
-            in_field_section = false
+        -- Everything before @class goes to function
+        for idx = 1, class_start_idx - 1 do
+          table.insert(func_lines, anno_lines[idx])
+        end
+
+        -- Find where class block ends (last @field line + any trailing blank comments)
+        local class_end_idx = class_start_idx
+        for idx = class_start_idx, #anno_lines do
+          local anno_line = anno_lines[idx]
+          if anno_line:match("^%-%-%-@class%s+") or anno_line:match("^%-%-%-@field%s+") then
+            class_end_idx = idx
+          elseif idx > class_start_idx and anno_line:match("^%-%-%-$") then
+            -- Blank comment after @field might be part of class or separator
+            -- Check if next line is still a field
+            if idx < #anno_lines and anno_lines[idx + 1]:match("^%-%-%-@field%s+") then
+              class_end_idx = idx
+            else
+              -- This is the separator between class and function docs
+              break
+            end
+          elseif idx > class_start_idx then
+            -- Hit a non-class annotation (like description or @param)
+            break
           end
+        end
+
+        -- Extract class lines
+        for idx = class_start_idx, class_end_idx do
+          table.insert(class_lines, anno_lines[idx])
+        end
+
+        -- Everything after class block goes to function
+        for idx = class_end_idx + 1, #anno_lines do
+          table.insert(func_lines, anno_lines[idx])
         end
 
         -- Process the class
