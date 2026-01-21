@@ -25,6 +25,7 @@ local record Opts
   embed: {string}          -- Files to embed via --embed
   output: string           -- Output file for --embed (defaults to "cosmic")
   example: string          -- Input file for --example (run examples)
+  benchmark: string        -- Input file for --benchmark (run benchmarks)
   doc: string              -- Input file for --doc (generate docs)
   error: string            -- Parse error message
 end
@@ -45,6 +46,7 @@ local function parse_args(): Opts
     embed = {},
     output = nil,
     example = nil,
+    benchmark = nil,
     doc = nil,
     error = nil,
   }
@@ -57,6 +59,7 @@ local function parse_args(): Opts
     { "embed", "required", nil },
     { "output", "required", nil },
     { "example", "required", nil },
+    { "benchmark", "required", nil },
     { "doc", "required", nil },
   }
 
@@ -180,6 +183,9 @@ local function parse_args(): Opts
     elseif opt == "example" then
       opts.example = optarg
       return opts
+    elseif opt == "benchmark" then
+      opts.benchmark = optarg
+      return opts
     elseif opt == "doc" then
       opts.doc = optarg
       return opts
@@ -257,6 +263,7 @@ local function main(): integer, string
       io.write("  --embed <file>           embed file(s) into cosmic (use multiple times)\n")
       io.write("  --output <file>          output file for --embed (default: cosmic)\n")
       io.write("  --example <file.tl>      run Example_* functions, check output\n")
+      io.write("  --benchmark <file.tl[:pattern]>  run Benchmark_* functions, report timing\n")
       io.write("  --doc <file.tl>          generate markdown documentation\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
       io.write("\n")
@@ -317,6 +324,25 @@ local function main(): integer, string
     local example = require("cosmic.example")
     local result = example.run(opts.example)
     io.write(example.format_results(opts.example, result) .. "\n")
+    return result.exit_code
+  end
+
+  -- Handle --benchmark
+  -- Supports: --benchmark file.tl or --benchmark file.tl:pattern
+  if opts.benchmark then
+    local benchmark = require("cosmic.benchmark")
+    local file_path = opts.benchmark
+    local filter: string = nil
+
+    -- Check for colon-separated filter pattern
+    local colon_pos = opts.benchmark:find(":[^/\\]") -- Avoid matching Windows paths or protocol prefixes
+    if colon_pos then
+      file_path = opts.benchmark:sub(1, colon_pos - 1)
+      filter = opts.benchmark:sub(colon_pos + 1)
+    end
+
+    local result = benchmark.run(file_path, filter)
+    io.write(benchmark.format_results(file_path, result) .. "\n")
     return result.exit_code
   end
 
