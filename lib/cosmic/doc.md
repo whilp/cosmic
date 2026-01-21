@@ -95,7 +95,6 @@ local record DocModule
   parse_dtl: function(source: string, file_path: string): ModuleDoc
   render: function(doc: ModuleDoc): string
   render_file: function(file_path: string): boolean, string
-  render_dtl_file: function(file_path: string): boolean, string
 end
 ```
 
@@ -162,28 +161,11 @@ function render_file(file_path: string): boolean, string
 
  Main entry point: parse file and render markdown.
  Reads a Teal file, extracts documentation, and renders it as markdown.
+ Auto-detects .d.tl files and uses the appropriate parser.
 
 **Parameters:**
 
 - `file_path` (string) - Path to the Teal file to document
-
-**Returns:**
-
-- boolean - Success status
-- string - Markdown documentation on success, error message on failure
-
-### render_dtl_file
-
-```teal
-function render_dtl_file(file_path: string): boolean, string
-```
-
- Main entry point for .d.tl files: parse and render markdown.
- Reads a Teal type declaration file and renders documentation as markdown.
-
-**Parameters:**
-
-- `file_path` (string) - Path to the .d.tl file to document
 
 **Returns:**
 
