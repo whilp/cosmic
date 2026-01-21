@@ -111,6 +111,45 @@ local function extract_doc_comment(source: string, pos: integer, allow_regular_c
   return table.concat(doc_lines, "\n")
 end
 
+--- Extract function signature starting from a given position.
+--- Finds the opening paren, matches to closing paren, and includes return type.
+--- @param source string The source code
+--- @param start_pos integer Position to start searching from
+--- @return string The extracted signature (from opening paren to end of line)
+local function extract_signature(source: string, start_pos: integer): string
+  local sig_start = source:find("%(", start_pos)
+  if not sig_start then return "()" end
+
+  local sig_end = sig_start
+  local depth = 0
+
+  -- Scan forward to find the matching closing paren
+  for i = sig_start, #source do
+    local char = source:sub(i, i)
+    if char == "(" then
+      depth = depth + 1
+    elseif char == ")" then
+      depth = depth - 1
+      if depth == 0 then
+        sig_end = i
+        -- Continue scanning for return type annotation up to newline
+        local j = i + 1
+        while j <= #source do
+          local c = source:sub(j, j)
+          if c == "\n" then
+            break
+          end
+          sig_end = j
+          j = j + 1
+        end
+        break
+      end
+    end
+  end
+
+  return source:sub(sig_start, sig_end)
+end
+
 --- Parse @param and @return annotations from doc comment.
 --- Extracts structured parameter and return information along with description.
 --- @param doc string The doc comment to parse
@@ -218,37 +257,7 @@ local function parse(source: string, file_path: string): ModuleDoc
 
     -- Skip Example_* functions (handled separately)
     if not (func_name as string):match("^Example") then
-      -- Find the signature: from ( to the end of the line or to the function body
-      local sig_start = source:find("%(", func_start as integer)
-      local sig_end = sig_start
-      local depth = 0
-
-      -- Scan forward to find the matching closing paren
-      for i = sig_start, #source do
-        local char = source:sub(i, i)
-        if char == "(" then
-          depth = depth + 1
-        elseif char == ")" then
-          depth = depth - 1
-          if depth == 0 then
-            sig_end = i
-            -- Continue scanning for return type annotation up to newline
-            local j = i + 1
-            while j <= #source do
-              local c = source:sub(j, j)
-              if c == "\n" then
-                break
-              end
-              sig_end = j
-              j = j + 1
-            end
-            break
-          end
-        end
-      end
-
-      local signature = source:sub(sig_start, sig_end)
-
+      local signature = extract_signature(source, func_start as integer)
       local func_doc = extract_doc_comment(source, func_start as integer)
       local params, returns, description = parse_annotations(func_doc)
 
@@ -285,37 +294,7 @@ local function parse(source: string, file_path: string): ModuleDoc
       update_line_num(func_start as integer)
 
       if not (func_name as string):match("^Example") then
-        -- Find the signature: from ( to the end of the line or to the function body
-        local sig_start = source:find("%(", func_start as integer)
-        local sig_end = sig_start
-        local depth = 0
-
-        -- Scan forward to find the matching closing paren
-        for i = sig_start, #source do
-          local char = source:sub(i, i)
-          if char == "(" then
-            depth = depth + 1
-          elseif char == ")" then
-            depth = depth - 1
-            if depth == 0 then
-              sig_end = i
-              -- Continue scanning for return type annotation up to newline
-              local j = i + 1
-              while j <= #source do
-                local c = source:sub(j, j)
-                if c == "\n" then
-                  break
-                end
-                sig_end = j
-                j = j + 1
-              end
-              break
-            end
-          end
-        end
-
-        local signature = source:sub(sig_start, sig_end)
-
+        local signature = extract_signature(source, func_start as integer)
         local func_doc = extract_doc_comment(source, func_start as integer)
         local params, returns, description = parse_annotations(func_doc)
 
@@ -872,6 +851,7 @@ end
 
 --- Main entry point: parse file and render markdown.
 --- Reads a Teal file, extracts documentation, and renders it as markdown.
+--- Auto-detects .d.tl files and uses the appropriate parser.
 --- @param file_path string Path to the Teal file to document
 --- @return boolean Success status
 --- @return string Markdown documentation on success, error message on failure
@@ -884,27 +864,13 @@ local function render_file(file_path: string): boolean, string
   local source = f:read("*a")
   f:close()
 
-  local doc = parse(source, file_path)
-  local markdown = render(doc)
-
-  return true, markdown
-end
-
---- Main entry point for .d.tl files: parse and render markdown.
---- Reads a Teal type declaration file and renders documentation as markdown.
---- @param file_path string Path to the .d.tl file to document
---- @return boolean Success status
---- @return string Markdown documentation on success, error message on failure
-local function render_dtl_file(file_path: string): boolean, string
-  local f, err = io.open(file_path, "r")
-  if not f then
-    return false, "cannot open file: " .. (err or "unknown")
+  -- Auto-detect file type and use appropriate parser
+  local doc: ModuleDoc
+  if file_path:match("%.d%.tl$") then
+    doc = parse_dtl(source, file_path)
+  else
+    doc = parse(source, file_path)
   end
-
-  local source = f:read("*a")
-  f:close()
-
-  local doc = parse_dtl(source, file_path)
   local markdown = render(doc)
 
   return true, markdown
@@ -915,7 +881,6 @@ local record DocModule
   parse_dtl: function(source: string, file_path: string): ModuleDoc
   render: function(doc: ModuleDoc): string
   render_file: function(file_path: string): boolean, string
-  render_dtl_file: function(file_path: string): boolean, string
 end
 
 local M: DocModule = {
@@ -923,7 +888,6 @@ local M: DocModule = {
   parse_dtl = parse_dtl,
   render = render,
   render_file = render_file,
-  render_dtl_file = render_dtl_file,
 }
 
 return M
