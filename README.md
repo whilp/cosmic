@@ -2,7 +2,9 @@
 
 This branch contains auto-generated documentation from the cosmic-lua source code.
 
-## Documentation
+## cosmo Package
+
+Core Cosmopolitan Libc bindings and system interfaces.
 
 | Module | Description |
 |--------|-------------|
@@ -15,7 +17,14 @@ This branch contains auto-generated documentation from the cosmic-lua source cod
 | [path](cosmo/path.md) | Type declarations for the `path` module. |
 | [re](cosmo/re.md) | Type declarations for the `re` module. |
 | [unix](cosmo/unix.md) | Type declarations for the `unix` module. |
-| [zip](cosmo/zip.md) |  |
+| [zip](cosmo/zip.md) | Type declarations for the `zip` module. |
+
+## cosmic Package
+
+High-level utilities and tools built on top of cosmo.
+
+| Module | Description |
+|--------|-------------|
 | [doc](lib/cosmic/doc.md) |  Extract documentation from Teal files and render as markdown. |
 | [embed](lib/cosmic/embed.md) |  Embed files into cosmic executable. |
 | [example](lib/cosmic/example.md) |  Go-style executable example testing. |

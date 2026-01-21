@@ -17,6 +17,17 @@ local record EmbedResult
 end
 ```
 
+### ZipAppender
+
+ Appender interface for adding files to a ZIP archive.
+
+```teal
+local record ZipAppender
+  add: function(self: ZipAppender, name: string, content: string): boolean, string
+  close: function(self: ZipAppender)
+end
+```
+
 ### FileToEmbed
 
 ```teal

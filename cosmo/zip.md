@@ -1,55 +1,94 @@
 # zip
 
+Type declarations for the `zip` module.
+
 ## Types
 
-### ZipAppender
-
- Writer for adding files to a ZIP archive.
+### OpenOptions
 
 ```teal
-local record ZipAppender
-  --  Add a file to the ZIP archive.
-  add: function(self: ZipAppender, name: string, content: string): boolean, string
-  --  Close the ZIP archive and finalize all entries.
-  close: function(self: ZipAppender)
+local record OpenOptions
+  --  Compression level 0-9 (for "w" and "a" modes)
+  level: number
+  --  Maximum file size limit in bytes
+  max_file_size: number
 end
 ```
 
-### ZipStat
+### Stat
 
  File metadata within a ZIP archive.
 
 ```teal
-local record ZipStat
-  --  Uncompressed file size in bytes.
+local record Stat
+  --  Uncompressed file size in bytes
   size: number
-  --  Compressed file size in bytes.
+  --  Compressed file size in bytes
   compressed_size: number
-  --  CRC32 checksum of uncompressed data.
+  --  CRC32 checksum of uncompressed data
   crc32: number
-  --  Modification time as Unix timestamp.
+  --  Modification time as Unix timestamp
   mtime: number
-  --  Compression method (0=stored, 8=deflated).
+  --  Compression method (0=stored, 8=deflated)
   method: number
-  --  Unix file mode/permissions.
+  --  Unix file mode/permissions
   mode: number
 end
 ```
 
-### ZipReader
+### AddOptions
+
+```teal
+local record AddOptions
+  --  Compression method: `"store"` or `"deflate"`
+  method: string
+  --  Modification time as Unix timestamp
+  mtime: number
+  --  Unix file mode (default 0644)
+  mode: number
+end
+```
+
+### Reader
 
  Reader for extracting files from a ZIP archive.
 
 ```teal
-local record ZipReader
-  --  List all files in the ZIP archive.
-  list: function(self: ZipReader): {string}
-  --  Get metadata for a specific file in the archive.
-  stat: function(self: ZipReader, name: string): ZipStat
-  --  Read the contents of a file from the archive.
-  read: function(self: ZipReader, name: string): string
-  --  Close the ZIP reader and release resources.
-  close: function(self: ZipReader)
+local record Reader
+  --  Lists all files in the ZIP archive.
+  list: function(self: Reader): {string}
+  --  Gets metadata for a specific file in the archive.
+  stat: function(self: Reader, name: string): Stat | nil
+  --  Reads the contents of a file from the archive.
+  read: function(self: Reader, name: string): string | nil, string | nil
+  --  Closes the ZIP reader and releases resources.
+  close: function(self: Reader)
+end
+```
+
+### Writer
+
+ Writer for creating new ZIP archives.
+
+```teal
+local record Writer
+  --  Adds a file to the ZIP archive.
+  add: function(self: Writer, name: string, content: string, options?: AddOptions): boolean | nil, string | nil
+  --  Closes the ZIP archive and writes the central directory.
+  close: function(self: Writer)
+end
+```
+
+### Appender
+
+ Writer for appending files to an existing ZIP archive.
+
+```teal
+local record Appender
+  --  Adds a file to the ZIP archive.
+  add: function(self: Appender, name: string, content: string, options?: AddOptions): boolean | nil, string | nil
+  --  Closes the ZIP archive and writes the updated central directory.
+  close: function(self: Appender)
 end
 ```
 
@@ -58,49 +97,37 @@ end
 ### open
 
 ```teal
-function open(path: string, mode: string): ZipAppender, string
+function open(path: string | number, mode?: string, options?: OpenOptions): any, string | nil
 ```
 
- Open a ZIP archive for reading or writing.
- For writing, creates a new archive or appends to an existing one.
- Example - Creating a ZIP archive:
-     local zip = require("cosmo.zip")
-     local archive = assert(zip.open("output.zip", "w"))
-     archive:add("hello.txt", "Hello, World!")
-     archive:add("data/config.json", '{"key": "value"}')
-     archive:close()
- Example - Reading a ZIP archive:
-     local archive = assert(zip.from(io.open("input.zip", "rb"):read("*a")))
-     local files = archive:list()
-     for _, name in ipairs(files) do
-       local content = archive:read(name)
-       print(name, #content)
-     end
-     archive:close()
+ Opens a ZIP archive for reading, writing, or appending.
+ The first argument can be a file path string or a file descriptor integer.
 
 **Parameters:**
 
-- `path` (string) - Path to the ZIP file
-- `mode` (string) - Open mode: "r" for reading, "w" for writing, "a" for appending
+- `path` (string | number)
+- `mode` (string)
+- `options` (OpenOptions)
 
 **Returns:**
 
-- ZipAppender|nil - appender ZIP writer object on success
-- string|nil - error Error message on failure
+- any
+- string | nil
 
 ### from
 
 ```teal
-function from(data: string): ZipReader, string
+function from(data: string, options?: OpenOptions): Reader | nil, string | nil
 ```
 
- Open a ZIP archive from in-memory data.
+ Opens a ZIP archive from in-memory data for reading.
 
 **Parameters:**
 
-- `data` (string) - ZIP file contents as a string
+- `data` (string)
+- `options` (OpenOptions)
 
 **Returns:**
 
-- ZipReader|nil - reader ZIP reader object on success
-- string|nil - error Error message on failure
+- Reader | nil
+- string | nil
