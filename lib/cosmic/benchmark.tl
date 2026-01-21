@@ -236,11 +236,12 @@ end
   return result
 end
 
---- Run all benchmarks in a file.
---- Parses and executes all Benchmark_* functions, returning aggregated results.
+--- Run all benchmarks in a file, optionally filtered by pattern.
+--- Parses and executes Benchmark_* functions, returning aggregated results.
 --- @param file_path string Path to the Teal file containing benchmarks
+--- @param filter string Optional Lua pattern to filter benchmark names (e.g., "concat" matches Benchmark_string_concat)
 --- @return RunResult Result with exit code (0=pass, 1=fail, 2=skip), results, and errors
-local function run(file_path: string): RunResult
+local function run(file_path: string, filter?: string): RunResult
   local f, err = io.open(file_path, "r")
   if not f then
     return {
@@ -253,10 +254,29 @@ local function run(file_path: string): RunResult
   local source = f:read("*a")
   f:close()
 
-  local benchmarks = parse_benchmarks(source)
+  local all_benchmarks = parse_benchmarks(source)
+
+  -- Filter benchmarks by pattern if provided
+  local benchmarks: {Benchmark} = {}
+  if filter then
+    for _, benchmark in ipairs(all_benchmarks) do
+      if benchmark.name:find(filter) then
+        table.insert(benchmarks, benchmark)
+      end
+    end
+  else
+    benchmarks = all_benchmarks
+  end
 
   if #benchmarks == 0 then
-    -- No benchmarks found - this is a skip (exit code 2)
+    -- No benchmarks found (or none matched filter) - this is a skip (exit code 2)
+    if filter and #all_benchmarks > 0 then
+      return {
+        exit_code = 2,
+        results = {},
+        error = "no benchmarks matching '" .. filter .. "' (found " .. #all_benchmarks .. " total)",
+      }
+    end
     return {
       exit_code = 2,
       results = {},
@@ -338,7 +358,7 @@ local function format_results(file_path: string, run_result: RunResult): string
 end
 
 local record BenchmarkModule
-  run: function(file_path: string): RunResult
+  run: function(file_path: string, filter?: string): RunResult
   parse_benchmarks: function(source: string): {Benchmark}
   format_results: function(file_path: string, run_result: RunResult): string
 end

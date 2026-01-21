@@ -154,4 +154,59 @@ end
 end
 test_runtime_error()
 
+-- Test filter: run specific benchmark by pattern
+local function test_filter_matching()
+  local input = write_temp("filter_bench.tl", [[
+local function Benchmark_string_concat()
+  local s = "a" .. "b"
+end
+
+local function Benchmark_table_insert()
+  local t = {}
+  t[1] = "x"
+end
+
+local function Benchmark_math_add()
+  local x = 1 + 2
+end
+]])
+  -- Filter to only run "string" benchmarks
+  local result = benchmark.run(input, "string")
+  assert(result.exit_code == 0, "should pass")
+  assert(#result.results == 1, "should run only one benchmark")
+  assert(result.results[1].name == "Benchmark_string_concat", "should run matching benchmark")
+end
+test_filter_matching()
+
+-- Test filter: no benchmarks match
+local function test_filter_no_match()
+  local input = write_temp("filter_nomatch.tl", [[
+local function Benchmark_foo()
+  local x = 1
+end
+]])
+  local result = benchmark.run(input, "nonexistent")
+  assert(result.exit_code == 2, "should return skip code")
+  assert(result.error:find("no benchmarks matching"), "should show filter error")
+end
+test_filter_no_match()
+
+-- Test cosmic --benchmark with filter syntax
+local function test_cosmic_benchmark_filter()
+  local input = write_temp("cmd_filter.tl", [[
+local function Benchmark_alpha()
+  local x = 1
+end
+
+local function Benchmark_beta()
+  local y = 2
+end
+]])
+  local ok, out = spawn({cosmic, "--benchmark", input .. ":alpha"}):read()
+  assert(ok, "cosmic --benchmark with filter should succeed")
+  assert((out as string):find("Benchmark_alpha"), "output should contain matching benchmark")
+  assert(not (out as string):find("Benchmark_beta"), "output should not contain non-matching benchmark")
+end
+test_cosmic_benchmark_filter()
+
 print("All benchmark tests passed!")
