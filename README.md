@@ -123,6 +123,40 @@ cosmic/
 └── o/               # Build output directory (created during build)
 ```
 
+## Documentation
+
+### cosmo Package
+
+Core Cosmopolitan Libc bindings and system interfaces.
+
+| Module | Description |
+|--------|-------------|
+| [argon2](https://github.com/whilp/cosmic/blob/docs/cosmo/argon2.md) | Type declarations for the `argon2` module. |
+| [finger](https://github.com/whilp/cosmic/blob/docs/cosmo/finger.md) | Type declarations for the `finger` module. |
+| [getopt](https://github.com/whilp/cosmic/blob/docs/cosmo/getopt.md) | Type declarations for the `getopt` module. |
+| [goodsocket](https://github.com/whilp/cosmic/blob/docs/cosmo/goodsocket.md) | Type declarations for the `goodsocket` module. |
+| [lsqlite3](https://github.com/whilp/cosmic/blob/docs/cosmo/lsqlite3.md) | Type declarations for the `lsqlite3` module. |
+| [maxmind](https://github.com/whilp/cosmic/blob/docs/cosmo/maxmind.md) | Type declarations for the `maxmind` module. |
+| [path](https://github.com/whilp/cosmic/blob/docs/cosmo/path.md) | Type declarations for the `path` module. |
+| [re](https://github.com/whilp/cosmic/blob/docs/cosmo/re.md) | Type declarations for the `re` module. |
+| [unix](https://github.com/whilp/cosmic/blob/docs/cosmo/unix.md) | Type declarations for the `unix` module. |
+| [zip](https://github.com/whilp/cosmic/blob/docs/cosmo/zip.md) | Type declarations for the `zip` module. |
+
+### cosmic Package
+
+High-level utilities and tools built on top of cosmo.
+
+| Module | Description |
+|--------|-------------|
+| [doc](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/doc.md) | Extract documentation from Teal files and render as markdown. |
+| [embed](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/embed.md) | Embed files into cosmic executable. |
+| [example](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/example.md) | Go-style executable example testing. |
+| [fetch](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/fetch.md) | Structured HTTP fetch with optional retry. |
+| [init](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/init.md) | Cosmopolitan Lua utilities. |
+| [spawn](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/spawn.md) | Process spawning utilities. |
+| [teal](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/teal.md) | Teal compilation and type-checking. |
+| [walk](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/walk.md) | Directory tree walking utilities. |
+
 ## License
 
 MIT License - See LICENSE file
