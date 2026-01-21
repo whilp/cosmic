@@ -223,9 +223,16 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
     -- Skip lines with annotations (---@) - handle them separately below
     if not line:match("^%-%-%-@") then
       -- Description line (--- text but not ---@)
-      local desc_text = line:match("^%-%-%-%s*(.*)$")
-      if desc_text and desc_text ~= "" then
-        table.insert(desc, desc_text)
+      -- Only strip the single space immediately after ---, preserve additional indentation
+      local desc_text = line:match("^%-%-%-(.*)$")
+      if desc_text then
+        -- Strip single leading space if present, but preserve additional spaces (for code examples)
+        if desc_text:sub(1, 1) == " " then
+          desc_text = desc_text:sub(2)
+        end
+        if desc_text ~= "" then
+          table.insert(desc, desc_text)
+        end
       end
     end
 
@@ -308,7 +315,10 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
           -- Common types: integer, number, string, boolean, nil, table, function
           -- Or module-prefixed types: unix.Errno, zip.Reader, etc.
           -- But exclude Lua keywords like "or", "and", etc.
-          if next_word and not lua_keywords[next_word] and (
+          -- Also exclude function calls like "remaining()" - check if word is followed by ()
+          local is_function_call = rest_after_comma:match("^%s*" .. (next_word or "") .. "%s*%(")
+
+          if next_word and not lua_keywords[next_word] and not is_function_call and (
             next_word:match("^[%l_]") or  -- Starts with lowercase or underscore (like integer, nil, string)
             next_word:match("^[%u]")      -- Starts with uppercase (like Memory, Errno)
             or next_word:match("%.")      -- Contains dot (like unix.Errno)
@@ -355,6 +365,17 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
           end
         end
         if part_type and part_type ~= "" then
+          -- If type is generic "table" but description starts with a specific type name,
+          -- use that specific type instead (e.g., "@return table parser ..." -> return type "parser")
+          if part_type == "table" and part_desc then
+            local specific_type = part_desc:match("^([%w_]+)")
+            if specific_type and specific_type:match("^[%l_]") then
+              -- Description starts with what looks like a type name, use it
+              part_type = specific_type
+              -- Remove the type name from description since it's redundant
+              part_desc = part_desc:match("^[%w_]+%s*(.*)") or part_desc
+            end
+          end
           table.insert(returns, {return_type = part_type, description = part_desc or ""})
         end
       end
