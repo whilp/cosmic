@@ -25,6 +25,7 @@ High-level utilities and tools built on top of cosmo.
 
 | Module | Description |
 |--------|-------------|
+| [benchmark](lib/cosmic/benchmark.md) |  Go-style benchmark testing. |
 | [doc](lib/cosmic/doc.md) |  Extract documentation from Teal files and render as markdown. |
 | [embed](lib/cosmic/embed.md) |  Embed files into cosmic executable. |
 | [example](lib/cosmic/example.md) |  Go-style executable example testing. |
