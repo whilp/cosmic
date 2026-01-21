@@ -119,10 +119,30 @@ local function convert_type(t: string): string
     return "number"
   end
 
-  -- Handle nullable types: T? -> T (mark optional in param position)
+  -- Handle nullable types: T? -> T | nil
+  -- For return types, nullable should be represented as a union with nil
+  -- However, if T is already a union of multiple table types, use 'any' instead
+  -- because Teal cannot discriminate between multiple table types
   local base = t:match("^(.+)%?$")
   if base then
-    return convert_type(base)
+    -- Check if base is a union of multiple types (contains |)
+    if base:match("|") then
+      -- Count how many parts look like table/record types (start with uppercase)
+      local table_count = 0
+      for part in base:gmatch("[^|]+") do
+        part = part:match("^%s*(.-)%s*$")
+        if part:match("^[%u]") or part:match("%.([%u][%w_]*)$") then
+          table_count = table_count + 1
+        end
+      end
+      -- If multiple table types, use 'any' to avoid Teal's union discrimination issue
+      if table_count > 1 then
+        return "any"
+      end
+    end
+    local converted_base = convert_type(base)
+    -- Return as union with nil
+    return converted_base .. " | nil"
   end
 
   -- Handle array types: string[] -> {string}
@@ -256,6 +276,7 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
       -- Pattern: "type name, type name" where both parts start with a type word
       local parts = {}
       local in_angle = 0
+      local in_brace = 0
       local current = ""
       for i = 1, #full_return do
         local c = full_return:sub(i, i)
@@ -263,13 +284,36 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
           in_angle = in_angle + 1
         elseif c == ">" then
           in_angle = in_angle - 1
+        elseif c == "{" then
+          in_brace = in_brace + 1
+        elseif c == "}" then
+          in_brace = in_brace - 1
         end
-        if c == "," and in_angle == 0 then
-          -- Only split on commas outside angle brackets
-          -- Check if what follows looks like a type (word at start)
-          local rest = full_return:sub(i + 1):match("^%s*([%w_]+)")
-          if rest and (rest == "integer" or rest == "number" or rest == "string" or rest == "boolean") then
-            -- This looks like another typed return value
+        if c == "," and in_angle == 0 and in_brace == 0 then
+          -- Only split on commas outside angle brackets and curly braces
+          -- Check if what follows looks like a type (word at start, optionally with dot for module types)
+          local rest_after_comma = full_return:sub(i + 1)
+          local next_word = rest_after_comma:match("^%s*([%w_%.]+)")
+
+          -- Lua keywords that should not be treated as type names
+          local lua_keywords = {
+            ["and"] = true, ["or"] = true, ["not"] = true,
+            ["if"] = true, ["then"] = true, ["else"] = true, ["elseif"] = true,
+            ["end"] = true, ["while"] = true, ["do"] = true, ["for"] = true,
+            ["repeat"] = true, ["until"] = true, ["break"] = true, ["return"] = true,
+            ["local"] = true, ["in"] = true,
+          }
+
+          -- Split if next word looks like a type name (starts with letter/underscore, may contain dots)
+          -- Common types: integer, number, string, boolean, nil, table, function
+          -- Or module-prefixed types: unix.Errno, zip.Reader, etc.
+          -- But exclude Lua keywords like "or", "and", etc.
+          if next_word and not lua_keywords[next_word] and (
+            next_word:match("^[%l_]") or  -- Starts with lowercase or underscore (like integer, nil, string)
+            next_word:match("^[%u]")      -- Starts with uppercase (like Memory, Errno)
+            or next_word:match("%.")      -- Contains dot (like unix.Errno)
+          ) then
+            -- This looks like another typed return value, split here
             table.insert(parts, current)
             current = ""
           else
@@ -614,6 +658,14 @@ local function parse_module(source: string, module_name: string): ModuleDecl
 
       local desc, params, returns, nodiscard, _, _ = parse_annotations(anno_lines)
 
+      -- If no @param annotations, infer parameter names from function signature
+      -- Make all inferred parameters optional since we don't have type info
+      if #params == 0 and params_str and params_str ~= "" then
+        for pname in params_str:gmatch("([%w_]+)") do
+          table.insert(params, {name = pname, param_type = "any", description = "", optional = true})
+        end
+      end
+
       local func: FuncDecl = {
         name = fname,
         module = module_name,
@@ -631,7 +683,16 @@ local function parse_module(source: string, module_name: string): ModuleDecl
       local full_class_name, method_name = line:match("^function%s+([%w_%.]+):([%w_]+)%s*%(")
       -- Extract just the class name without module prefix
       local class_name = full_class_name:match("%.([%w_]+)$") or full_class_name
+      local method_params_str = line:match("%((.-)%)")
       local desc, params, returns, nodiscard, _, _ = parse_annotations(anno_lines)
+
+      -- If no @param annotations, infer parameter names from method signature
+      -- Make all inferred parameters optional since we don't have type info
+      if #params == 0 and method_params_str and method_params_str ~= "" then
+        for pname in method_params_str:gmatch("([%w_]+)") do
+          table.insert(params, {name = pname, param_type = "any", description = "", optional = true})
+        end
+      end
 
       local method: FuncDecl = {
         name = method_name,

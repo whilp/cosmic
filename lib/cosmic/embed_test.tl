@@ -10,6 +10,13 @@ local zip = require("cosmo.zip")
 local cosmic = path.join(os.getenv("TEST_BIN"), "cosmic")
 local tmpdir = os.getenv("TEST_TMPDIR")
 
+-- Local declaration of Reader interface for type casting
+local record Reader
+  list: function(self: Reader): {string}
+  read: function(self: Reader, name: string): string | nil, string | nil
+  close: function(self: Reader)
+end
+
 local function write_temp(name: string, content: string): string
   local filepath = path.join(tmpdir, name)
   local dir = path.dirname(filepath)
@@ -35,7 +42,9 @@ local function test_embed_single_file()
 
   -- Verify file is in the zip
   local data = cosmo.Slurp(output)
-  local reader = zip.from(data)
+  local reader_maybe = zip.from(data)
+  assert(reader_maybe, "failed to open zip from data")
+  local reader = reader_maybe as Reader
   local files = reader:list()
 
   local found = false
@@ -65,7 +74,9 @@ local function test_embed_multiple_files()
   assert(ok, "cosmic --embed with multiple files should succeed: " .. (out or ""))
 
   local data = cosmo.Slurp(output)
-  local reader = zip.from(data)
+  local reader_maybe = zip.from(data)
+  assert(reader_maybe, "failed to open zip from data")
+  local reader = reader_maybe as Reader
 
   local name1 = file1:gsub("^/+", "")
   local name2 = file2:gsub("^/+", "")
@@ -95,7 +106,7 @@ test_embed_custom_output()
 -- Test error on missing input file
 local function test_embed_missing_file()
   local output = path.join(tmpdir, "cosmic-missing")
-  local ok, out = spawn({cosmic, "--embed", "/nonexistent/file.txt", "--output", output}):read()
+  local ok, _out = spawn({cosmic, "--embed", "/nonexistent/file.txt", "--output", output}):read()
   assert(not ok, "cosmic --embed should fail on missing file")
 end
 test_embed_missing_file()
@@ -110,7 +121,9 @@ local function test_embed_lua_file()
 
   -- Verify the lua file is in the zip with correct content
   local data = cosmo.Slurp(output)
-  local reader = zip.from(data)
+  local reader_maybe = zip.from(data)
+  assert(reader_maybe, "failed to open zip from data")
+  local reader = reader_maybe as Reader
   local name = modfile:gsub("^/+", "")
   local content = reader:read(name)
   assert(content == [[return { value = 42 }]], "lua content should be preserved")
@@ -129,7 +142,9 @@ local function test_embed_binary_file()
   assert(ok, "embed binary should succeed: " .. (out or ""))
 
   local data = cosmo.Slurp(output)
-  local reader = zip.from(data)
+  local reader_maybe = zip.from(data)
+  assert(reader_maybe, "failed to open zip from data")
+  local reader = reader_maybe as Reader
   local name = input:gsub("^/+", "")
   local content = reader:read(name)
   assert(content == binary, "binary content should be preserved exactly")

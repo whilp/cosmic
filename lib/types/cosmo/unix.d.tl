@@ -720,7 +720,7 @@ local record unix
   --- there's some irregular uses of environment variables such as how the
   --- command prompt inserts multiple environment variables with empty
   --- string as keys, for its internal bookkeeping.
-  environ: function(): {string:string}
+  environ: function(): {string:string | nil}
   --- Sets environment variable.
   --- This wraps the C `setenv()` function to allow Lua scripts to set
   --- environment variables.
@@ -729,14 +729,14 @@ local record unix
   --- @param overwrite? boolean if false, won't overwrite existing variables (defaults to true)
   --- @return true
   --- @overload fun(name: string, value: string, overwrite?: boolean): nil, error: unix.Errno
-  setenv: function()
+  setenv: function(name?: any, value?: any, overwrite?: any)
   --- Unsets environment variable.
   --- This wraps the C `unsetenv()` function to allow Lua scripts to remove
   --- environment variables.
   --- @param name string environment variable name to unset
   --- @return true
   --- @overload fun(name: string): nil, error: unix.Errno
-  unsetenv: function()
+  unsetenv: function(name?: any)
   --- Clears all environment variables.
   --- This wraps the C `clearenv()` function to allow Lua scripts to remove
   --- all environment variables at once.
@@ -841,20 +841,20 @@ local record unix
   --- This function never returns on success.
   --- `EAGAIN` is returned if you've enforced a max number of
   --- processes using `setrlimit(RLIMIT_NPROC)`.
-  execve: function(prog: string, args: {string}, env: {string}): nil,
+  execve: function(prog: string, args: {string}, env: {string}): nil, Errno
   --- Executes program with PATH search.
   --- Unlike `execve()`, this function searches for `prog` in the
   --- directories listed in the `PATH` environment variable.
   --- If `argv` is not provided, it defaults to `{prog}`.
   --- This function never returns on success.
-  execvp: function(prog: string, argv?: {string}): nil,
+  execvp: function(prog: string, argv?: {string}): nil, Errno
   --- Executes program with PATH search and custom environment.
   --- Like `execvp()` but also allows specifying a custom environment.
   --- `envp` is a string list table where each string is typically
   --- in the form `"KEY=value"`. If not specified, inherits the
   --- current environment.
   --- This function never returns on success.
-  execvpe: function(prog: string, argv: {string}, envp?: {string}): nil,
+  execvpe: function(prog: string, argv: {string}, envp?: {string}): nil, Errno
   --- Executes program from file descriptor.
   --- This allows executing a program that has already been opened,
   --- which can be useful for executing programs that have been
@@ -865,7 +865,7 @@ local record unix
   --- `envp` is the environment. If not specified, inherits the
   --- current environment.
   --- This function never returns on success.
-  fexecve: function(fd: number, argv: {string}, envp?: {string}): nil,
+  fexecve: function(fd: number, argv: {string}, envp?: {string}): nil, Errno
   --- Spawns a new process.
   --- Unlike `fork()` + `execve()`, this uses `posix_spawn()` which
   --- can be more efficient on some platforms.
@@ -967,7 +967,7 @@ local record unix
   --- break
   --- end
   --- end
-  wait: function(pid?: number, options?: number): number, number
+  wait: function(pid?: number, options?: number): number, number, Rusage
   --- Returns `true` if process exited cleanly.
   WIFEXITED: function(wstatus: number): boolean
   --- Returns code passed to exit() assuming `WIFEXITED(wstatus)` is true.
@@ -1696,18 +1696,18 @@ local record unix
   --- `flags` may have any combination (using bitwise OR) of:
   --- - `SOCK_CLOEXEC`
   --- - `SOCK_NONBLOCK`
-  accept: function(serverfd: number, flags?: number): number
+  accept: function(serverfd: number, flags?: number): number, number, number
   --- Connects a TCP socket to a remote host.
   --- With TCP this is a blocking operation. For a UDP socket it simply
   --- remembers the intended address so that `send()` or `write()` may be used
   --- rather than `sendto()`.
   connect: function(fd: number, ip: number, port: number): boolean
   --- Retrieves the local address of a socket.
-  getsockname: function(fd: number): number
+  getsockname: function(fd: number): number, number
   --- Retrieves the remote address of a socket.
   --- This operation will either fail on `AF_UNIX` sockets or return an
   --- empty string.
-  getpeername: function(fd: number): number
+  getpeername: function(fd: number): number, number
   --- - `MSG_WAITALL`
   --- - `MSG_DONTROUTE`
   --- - `MSG_PEEK`
@@ -1805,10 +1805,10 @@ local record unix
   --- assert(gotsigusr1)
   --- assert(unix.sigprocmask(unix.SIG_SETMASK, oldmask))
   --- It's a good idea to not do too much work in a signal handler.
-  sigaction: function(sig: number, handler?: function | number, flags?: number, mask?: Sigset): function | number, number
+  sigaction: function(sig: number, handler?: function | number, flags?: number, mask?: Sigset): function | number, number, Sigset
   --- Waits for signal to be delivered.
   --- The signal mask is temporarily replaced with `mask` during this system call.
-  sigsuspend: function(mask?: Sigset): nil,
+  sigsuspend: function(mask?: Sigset): nil, Errno
   --- Causes `SIGALRM` signals to be generated at some point(s) in the
   --- future. The `which` parameter should be `ITIMER_REAL`.
   --- Here's an example of how to create a 400 ms interval timer:
@@ -2127,7 +2127,7 @@ local record unix
   --- @param fd integer should be created by `open(path, O_RDONLY|O_DIRECTORY)`.
   --- The returned `unix.Dir` takes ownership of the file descriptor
   --- and will close it automatically when garbage collected.
-  fdopendir: function(): function
+  fdopendir: function(fd?: any): function, Dir
   --- Returns true if file descriptor is a teletypewriter. Otherwise nil
   --- with an Errno object holding one of the following values:
   --- - `ENOTTY` if `fd` is valid but not a teletypewriter

@@ -53,7 +53,7 @@ local record getopt
   --- end
   --- end
   --- -- Now excludes contains all -e values: {"foo", "bar", "spam"}
-  new: function(args: {string}, optstring: string, longopts?: {table}): table
+  new: function(args: {string}, optstring: string, longopts?: {table}): parser
 end
 
 return getopt

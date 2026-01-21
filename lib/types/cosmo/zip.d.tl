@@ -37,9 +37,9 @@ local record Reader
   --- Lists all files in the ZIP archive.
   list: function(self: Reader): {string}
   --- Gets metadata for a specific file in the archive.
-  stat: function(self: Reader, name: string): Stat
+  stat: function(self: Reader, name: string): Stat | nil
   --- Reads the contents of a file from the archive.
-  read: function(self: Reader, name: string): string, string
+  read: function(self: Reader, name: string): string | nil, string | nil
   --- Closes the ZIP reader and releases resources.
   close: function(self: Reader)
 end
@@ -47,7 +47,7 @@ end
 --- Writer for creating new ZIP archives.
 local record Writer
   --- Adds a file to the ZIP archive.
-  add: function(self: Writer, name: string, content: string, options?: AddOptions): boolean, string
+  add: function(self: Writer, name: string, content: string, options?: AddOptions): boolean | nil, string | nil
   --- Closes the ZIP archive and writes the central directory.
   close: function(self: Writer)
 end
@@ -55,7 +55,7 @@ end
 --- Writer for appending files to an existing ZIP archive.
 local record Appender
   --- Adds a file to the ZIP archive.
-  add: function(self: Appender, name: string, content: string, options?: AddOptions): boolean, string
+  add: function(self: Appender, name: string, content: string, options?: AddOptions): boolean | nil, string | nil
   --- Closes the ZIP archive and writes the updated central directory.
   close: function(self: Appender)
 end
@@ -63,9 +63,9 @@ end
 local record zip
   --- Opens a ZIP archive for reading, writing, or appending.
   --- The first argument can be a file path string or a file descriptor integer.
-  open: function(path: string | number, mode?: string, options?: OpenOptions): Reader | Writer | Appender, string
+  open: function(path: string | number, mode?: string, options?: OpenOptions): any, string | nil
   --- Opens a ZIP archive from in-memory data for reading.
-  from: function(data: string, options?: OpenOptions): Reader, string
+  from: function(data: string, options?: OpenOptions): Reader | nil, string | nil
 end
 
 return zip
