@@ -35,8 +35,8 @@ Process spawning utilities.
 
   local readme = publish.make_readme(docs_dir)
 
-  -- README should have a table section
-  assert(readme:find("## Documentation"), "should have Documentation section")
+  -- README should have a package section (lib/cosmic -> cosmic)
+  assert(readme:find("## cosmic Package"), "should have cosmic Package section")
 
   -- README should link to each doc file
   assert(readme:find("%[embed%]"), "should link to embed.md")

@@ -126,9 +126,9 @@ local function parse_args(): Opts
   -- Only parse cosmic options (before script name)
   local cosmic_args: {string} = {}
   if script_idx then
-    for i = 1, script_idx - 1 do
-      if arg[i] ~= "--" then  -- Exclude -- separator
-        cosmic_args[#cosmic_args + 1] = arg[i]
+    for k = 1, script_idx - 1 do
+      if arg[k] ~= "--" then  -- Exclude -- separator
+        cosmic_args[#cosmic_args + 1] = arg[k]
       end
     end
   else
@@ -191,10 +191,10 @@ local function parse_args(): Opts
     opts.script = arg[script_idx]
     opts.script_args[0] = arg[script_idx]
     local arg_num = 1
-    for i = script_idx + 1, #arg do
+    for k = script_idx + 1, #arg do
       -- Skip -- separator
-      if arg[i] ~= "--" then
-        opts.script_args[arg_num] = arg[i]
+      if arg[k] ~= "--" then
+        opts.script_args[arg_num] = arg[k]
         arg_num = arg_num + 1
       end
     end

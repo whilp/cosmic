@@ -212,12 +212,10 @@ $(o)/%.tl.example.got: %.tl $(cosmic_bin) | $(bootstrap_files)
 regen-types: | $(bootstrap_cosmic) $(cosmos_staged)
 	@echo "Regenerating type definitions using bootstrap cosmic..."
 	@for mod in $(type_modules); do \
-		if ! echo "$(type_manual_fixes)" | grep -q "lib/types/cosmo/$$mod.d.tl"; then \
-			echo "  $$mod.d.tl"; \
-			$(bootstrap_cosmic) -e "print(require('types.gentype').run('$$mod').output)" > lib/types/cosmo/$$mod.d.tl; \
-		fi \
+		echo "  $$mod.d.tl"; \
+		$(bootstrap_cosmic) -e "print(require('types.gentype').run('$$mod').output)" > lib/types/cosmo/$$mod.d.tl; \
 	done
-	@echo "Type definitions regenerated (unix.d.tl and getopt.d.tl preserved with manual fixes)."
+	@echo "Type definitions regenerated from upstream cosmopolitan."
 
 # Documentation generation - render .tl files as markdown
 all_docs := $(patsubst %.tl,$(o)/docs/%.md,$(all_example_srcs))

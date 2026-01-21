@@ -71,27 +71,73 @@ local function scan_docs(docs_dir: string): {DocInfo}
   return docs
 end
 
+-- Extract package name from doc path
+local function get_package_name(doc_path: string): string
+  if doc_path:match("^lib/") then
+    -- For lib/* paths, use the second component as package name
+    local pkg = doc_path:match("^lib/([^/]+)")
+    return pkg or "lib"
+  else
+    -- For other paths, use the first component as package name
+    local pkg = doc_path:match("^([^/]+)")
+    return pkg or "other"
+  end
+end
+
+-- Package descriptions for known packages
+local package_info: {string: string} = {
+  cosmo = "Core Cosmopolitan Libc bindings and system interfaces.",
+  cosmic = "High-level utilities and tools built on top of cosmo.",
+}
+
 -- Generate README.md content with links to docs
 local function make_readme(docs_dir: string): string
   local docs = scan_docs(docs_dir)
+
+  -- Group docs by package dynamically
+  local packages: {string: {DocInfo}} = {}
+  local package_order: {string} = {}
+
+  for _, doc in ipairs(docs) do
+    local pkg = get_package_name(doc.path)
+    if not packages[pkg] then
+      packages[pkg] = {}
+      table.insert(package_order, pkg)
+    end
+    table.insert(packages[pkg], doc)
+  end
 
   local lines: {string} = {
     "# Generated Documentation",
     "",
     "This branch contains auto-generated documentation from the cosmic-lua source code.",
     "",
-    "## Documentation",
-    "",
-    "| Module | Description |",
-    "|--------|-------------|",
   }
 
-  for _, doc in ipairs(docs) do
-    local link = "[" .. doc.name .. "](" .. doc.path .. ")"
-    table.insert(lines, "| " .. link .. " | " .. doc.description .. " |")
+  -- Generate section for each package
+  for _, pkg in ipairs(package_order) do
+    local pkg_docs = packages[pkg]
+    if #pkg_docs > 0 then
+      table.insert(lines, "## " .. pkg .. " Package")
+      table.insert(lines, "")
+
+      -- Add package description if available
+      local description = package_info[pkg]
+      if description then
+        table.insert(lines, description)
+        table.insert(lines, "")
+      end
+
+      table.insert(lines, "| Module | Description |")
+      table.insert(lines, "|--------|-------------|")
+      for _, doc in ipairs(pkg_docs) do
+        local link = "[" .. doc.name .. "](" .. doc.path .. ")"
+        table.insert(lines, "| " .. link .. " | " .. doc.description .. " |")
+      end
+      table.insert(lines, "")
+    end
   end
 
-  table.insert(lines, "")
   table.insert(lines, "---")
   table.insert(lines, "")
   table.insert(lines, "Documentation is generated from Teal source files using `cosmic --doc`.")

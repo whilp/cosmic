@@ -1,7 +1,7 @@
 return {
   format="zip",
-  platforms={["*"]={sha="3c564d78bbc4fff976e74e61a2f4b01931871677516198fd1e6297d8cc1cf99c"}},
+  platforms={["*"]={sha="356e4edfca45704a638d68182120f3f22775ed4e91747748e50f57dbd630ab17"}},
   strip_components=0,
   url="https://github.com/whilp/cosmopolitan/releases/download/{version}/cosmos.zip",
-  version="2026.01.20-f166469cc"
+  version="2026.01.21-10eb116a5"
 }

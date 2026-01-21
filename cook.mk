@@ -2,10 +2,8 @@
 # This file aggregates all modules for the build system
 
 # Type definition generation (define early so it's available to all modules)
-type_modules := unix path getopt lsqlite3 re maxmind finger argon2 goodsocket
+type_modules := unix path getopt lsqlite3 re maxmind finger argon2 goodsocket zip
 type_gen_outputs := $(patsubst %,lib/types/cosmo/%.d.tl,$(type_modules))
-# Manual fixes: unix/getopt have gentype bugs, zip is hand-written
-type_manual_fixes := lib/types/cosmo/unix.d.tl lib/types/cosmo/getopt.d.tl lib/types/cosmo/zip.d.tl
 
 # Bootstrap module: setup cosmic-lua for build process
 modules += bootstrap

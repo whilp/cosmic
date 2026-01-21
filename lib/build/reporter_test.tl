@@ -38,7 +38,7 @@ local function run_reporter(...: string): integer, string, string
 
   local handle = spawn(args) as SpawnHandle
   local stderr_content = handle.stderr and handle.stderr:read() or ""
-  local ok, stdout, exit_code = handle:read()
+  local _ok, stdout, exit_code = handle:read()
   return exit_code, stdout or "", stderr_content
 end
 

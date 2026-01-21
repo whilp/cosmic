@@ -6,7 +6,7 @@ local cosmo = require("cosmo")
 local cosmic = require("cosmic")
 
 -- Modules to generate (in order)
-local MODULES = {"unix", "path", "getopt", "lsqlite3", "re", "maxmind", "finger", "argon2", "goodsocket"}
+local MODULES = {"unix", "path", "getopt", "lsqlite3", "re", "maxmind", "finger", "argon2", "goodsocket", "zip"}
 
 -- Type conversion from LuaLS to Teal
 -- integer -> number for Teal compatibility (Teal infers numeric literals as number)
@@ -119,10 +119,30 @@ local function convert_type(t: string): string
     return "number"
   end
 
-  -- Handle nullable types: T? -> T (mark optional in param position)
+  -- Handle nullable types: T? -> T | nil
+  -- For return types, nullable should be represented as a union with nil
+  -- However, if T is already a union of multiple table types, use 'any' instead
+  -- because Teal cannot discriminate between multiple table types
   local base = t:match("^(.+)%?$")
   if base then
-    return convert_type(base)
+    -- Check if base is a union of multiple types (contains |)
+    if base:match("|") then
+      -- Count how many parts look like table/record types (start with uppercase)
+      local table_count = 0
+      for part in base:gmatch("[^|]+") do
+        part = part:match("^%s*(.-)%s*$")
+        if part:match("^[%u]") or part:match("%.([%u][%w_]*)$") then
+          table_count = table_count + 1
+        end
+      end
+      -- If multiple table types, use 'any' to avoid Teal's union discrimination issue
+      if table_count > 1 then
+        return "any"
+      end
+    end
+    local converted_base = convert_type(base)
+    -- Return as union with nil
+    return converted_base .. " | nil"
   end
 
   -- Handle array types: string[] -> {string}
@@ -161,16 +181,23 @@ local function convert_type(t: string): string
     end
   end
 
-  -- Handle union types: T|U -> T | U (keep as is for now, Teal doesn't support well)
+  -- Handle union types: T|U -> T | U
+  -- Teal supports union types with | syntax
   if t:match("|") then
-    -- For unions, just take the first non-nil type
+    local parts: {string} = {}
     for part in t:gmatch("[^|]+") do
       part = part:match("^%s*(.-)%s*$")
-      if part ~= "nil" then
-        return convert_type(part)
+      if part ~= "nil" and part ~= "" then
+        table.insert(parts, convert_type(part))
       end
     end
-    return "any"
+    if #parts == 0 then
+      return "any"
+    elseif #parts == 1 then
+      return parts[1]
+    else
+      return table.concat(parts, " | ")
+    end
   end
 
   -- Handle module-prefixed types: lsqlite3.Database -> Database
@@ -184,10 +211,11 @@ local function convert_type(t: string): string
 end
 
 --- Parse annotations from a block of text before a declaration.
-local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, boolean, string
+local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, boolean, string, {Field}
   local desc: {string} = {}
   local params: {Param} = {}
   local returns: {Return} = {}
+  local fields: {Field} = {}
   local nodiscard = false
   local class_annotation: string = nil
 
@@ -195,9 +223,16 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
     -- Skip lines with annotations (---@) - handle them separately below
     if not line:match("^%-%-%-@") then
       -- Description line (--- text but not ---@)
-      local desc_text = line:match("^%-%-%-%s*(.*)$")
-      if desc_text and desc_text ~= "" then
-        table.insert(desc, desc_text)
+      -- Only strip the single space immediately after ---, preserve additional indentation
+      local desc_text = line:match("^%-%-%-(.*)$")
+      if desc_text then
+        -- Strip single leading space if present, but preserve additional spaces (for code examples)
+        if desc_text:sub(1, 1) == " " then
+          desc_text = desc_text:sub(2)
+        end
+        if desc_text ~= "" then
+          table.insert(desc, desc_text)
+        end
       end
     end
 
@@ -217,40 +252,132 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
       table.insert(params, {name = pname, param_type = ptype, description = pdesc or "", optional = optional})
     end
 
+    -- @field name type description
+    -- Field name may end with ? for optional fields
+    local fname, ftype, fdesc = line:match("^%-%-%-@field%s+([%w_%.%?]+)%s+([^%s]+)%s*(.*)$")
+    if fname then
+      local optional = false
+      -- Check if name ends with ?
+      if fname:match("%?$") then
+        optional = true
+        fname = fname:sub(1, -2)
+      end
+      -- Check if type ends with ?
+      if ftype:match("%?$") then
+        optional = true
+        ftype = ftype:sub(1, -2)
+      end
+      table.insert(fields, {name = fname, field_type = ftype, description = {fdesc or ""}})
+    end
+
     -- @return type [name] [description]
-    -- Each @return line describes one return value
+    -- Can have multiple return values: "@return type1 name1, type2 name2" (for function signatures)
+    -- But NOT for descriptions containing commas
     local full_return = line:match("^%-%-%-@return%s+(.+)$")
     if full_return then
       full_return = full_return:match("^%s*(.-)%s*$")  -- trim
       local rtype: string = nil
       local rdesc: string = nil
 
-      -- Check if it's an inline record type: { ... }
-      if full_return:match("^{") then
-        -- Match everything up to closing } or }[]
-        rtype, rdesc = full_return:match("^({.-%}%[?%]?)%s+(.*)$")
-        if not rtype then
-          rtype = full_return:match("^({.-%}%[?%]?)%s*$")
+      -- Check if it looks like multiple typed returns (e.g., "integer reader, integer writer")
+      -- Pattern: "type name, type name" where both parts start with a type word
+      local parts = {}
+      local in_angle = 0
+      local in_brace = 0
+      local current = ""
+      for i = 1, #full_return do
+        local c = full_return:sub(i, i)
+        if c == "<" then
+          in_angle = in_angle + 1
+        elseif c == ">" then
+          in_angle = in_angle - 1
+        elseif c == "{" then
+          in_brace = in_brace + 1
+        elseif c == "}" then
+          in_brace = in_brace - 1
         end
-      -- Check if it contains angle brackets (generic type like table<K, V>)
-      elseif full_return:match("<.->") then
-        -- Match generic type, everything after closing > is description
-        rtype, rdesc = full_return:match("^([^%s]+<.->)%s+(.*)$")
-        if not rtype then
-          rtype = full_return:match("^([^%s]+<.->)%s*$")
+        if c == "," and in_angle == 0 and in_brace == 0 then
+          -- Only split on commas outside angle brackets and curly braces
+          -- Check if what follows looks like a type (word at start, optionally with dot for module types)
+          local rest_after_comma = full_return:sub(i + 1)
+          local next_word = rest_after_comma:match("^%s*([%w_%.]+)")
+
+          -- Lua keywords that should not be treated as type names
+          local lua_keywords = {
+            ["and"] = true, ["or"] = true, ["not"] = true,
+            ["if"] = true, ["then"] = true, ["else"] = true, ["elseif"] = true,
+            ["end"] = true, ["while"] = true, ["do"] = true, ["for"] = true,
+            ["repeat"] = true, ["until"] = true, ["break"] = true, ["return"] = true,
+            ["local"] = true, ["in"] = true,
+          }
+
+          -- Split if next word looks like a type name (starts with letter/underscore, may contain dots)
+          -- Common types: integer, number, string, boolean, nil, table, function
+          -- Or module-prefixed types: unix.Errno, zip.Reader, etc.
+          -- But exclude Lua keywords like "or", "and", etc.
+          -- Also exclude function calls like "remaining()" - check if word is followed by ()
+          local is_function_call = rest_after_comma:match("^%s*" .. (next_word or "") .. "%s*%(")
+
+          if next_word and not lua_keywords[next_word] and not is_function_call and (
+            next_word:match("^[%l_]") or  -- Starts with lowercase or underscore (like integer, nil, string)
+            next_word:match("^[%u]")      -- Starts with uppercase (like Memory, Errno)
+            or next_word:match("%.")      -- Contains dot (like unix.Errno)
+          ) then
+            -- This looks like another typed return value, split here
+            table.insert(parts, current)
+            current = ""
+          else
+            -- Comma is part of description, keep it
+            current = current .. c
+          end
+        else
+          current = current .. c
         end
       end
-      -- Simple type: just first word
-      if not rtype then
-        rtype, rdesc = full_return:match("^([^%s]+)%s+(.*)$")
-        if not rtype then
-          rtype = full_return
+      table.insert(parts, current)
+
+      -- Process each part
+      for _, return_part in ipairs(parts) do
+        return_part = return_part:match("^%s*(.-)%s*$")  -- trim
+        local part_type: string = nil
+        local part_desc: string = nil
+
+        -- Check if it's an inline record type: { ... }
+        if return_part:match("^{") then
+          -- Match everything up to closing } or }[]
+          part_type, part_desc = return_part:match("^({.-%}%[?%]?)%s+(.*)$")
+          if not part_type then
+            part_type = return_part:match("^({.-%}%[?%]?)%s*$")
+          end
+        -- Check if it contains angle brackets (generic type like table<K, V>)
+        elseif return_part:match("<.->") then
+          -- Match generic type, everything after closing > is description
+          part_type, part_desc = return_part:match("^([^%s]+<.->)%s+(.*)$")
+          if not part_type then
+            part_type = return_part:match("^([^%s]+<.->)%s*$")
+          end
         end
-      end
-      if rtype and rtype ~= "" then
-        -- Strip trailing comma (from formats like "@return nil, unix.Errno error")
-        rtype = rtype:gsub(",$", "")
-        table.insert(returns, {return_type = rtype, description = rdesc or ""})
+        -- Simple type: just first word
+        if not part_type then
+          part_type, part_desc = return_part:match("^([^%s]+)%s+(.*)$")
+          if not part_type then
+            part_type = return_part
+          end
+        end
+        if part_type and part_type ~= "" then
+          -- If type is generic "table" but description starts with a specific type name,
+          -- use that specific type instead (e.g., "@return table parser ..." -> return type "parser")
+          if part_type == "table" and part_desc then
+            local specific_type = part_desc:match("^([%w_]+)")
+            if specific_type and specific_type:match("^[%l_]") then
+              -- Description starts with what looks like a type name, use it
+              part_type = specific_type
+              -- Remove the type name from description since it's redundant
+              part_desc = part_desc:match("^[%w_]+%s*(.*)") or part_desc
+            end
+          end
+          table.insert(returns, {return_type = part_type, description = part_desc or ""})
+        end
       end
     end
 
@@ -273,7 +400,7 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
     end
   end
 
-  return desc, params, returns, nodiscard, class_annotation
+  return desc, params, returns, nodiscard, class_annotation, fields
 end
 
 --- Extract a module's content from definitions.lua.
@@ -316,6 +443,16 @@ local function extract_module_content(source: string, module_name: string): stri
   -- Find all related function declarations after the module table
   -- Look for function module.name() or function module.Class:method()
   local search_start = end_pos
+
+  -- Find the first function to determine where to start full extraction
+  local first_func = source:find("\nfunction " .. module_name .. "%.", search_start)
+  if first_func then
+    -- Include everything from module table end to the first function
+    -- This captures standalone @class blocks like OpenOptions
+    content = content .. source:sub(end_pos, first_func - 1)
+    search_start = first_func
+  end
+
   while true do
     -- Find next function for this module (pattern: function module.anything)
     local func_start = source:find("\nfunction " .. module_name .. "%.", search_start)
@@ -339,18 +476,8 @@ local function extract_module_content(source: string, module_name: string): stri
     end
 
     if func_end then
-      -- Include any annotations before the function
-      local anno_start = func_start
-      while anno_start > search_start do
-        local prev_line_end = source:sub(1, anno_start - 1):match(".*\n()") or 1
-        local prev_line = source:sub(prev_line_end, anno_start - 1)
-        if prev_line:match("^%s*%-%-%-") then
-          anno_start = prev_line_end - 1
-        else
-          break
-        end
-      end
-      content = content .. "\n" .. source:sub(anno_start, func_end - 1)
+      -- Include from function start to end (annotations already included above)
+      content = content .. "\n" .. source:sub(func_start, func_end - 1)
       search_start = func_end
     else
       content = content .. "\n" .. source:sub(func_start)
@@ -368,6 +495,7 @@ local function parse_module(source: string, module_name: string): ModuleDecl
     return nil
   end
 
+
   local module: ModuleDecl = {
     name = module_name,
     description = {},
@@ -384,13 +512,56 @@ local function parse_module(source: string, module_name: string): ModuleDecl
 
   local anno_lines: {string} = {}
   local i = 1
+  local in_class_block = false
 
   while i <= #lines do
     local line = lines[i]
 
     -- Collect annotation lines
     if line:match("^%s*%-%-%-") or line:match("^%-%-%-") then
+      -- Check if this is a NEW @class line while we're already in a class block
+      if line:match("^%-%-%-@class%s+") and in_class_block and #anno_lines > 0 then
+        -- Process the previous @class block before starting a new one
+        local desc, _, _, _, class_annotation, fields = parse_annotations(anno_lines)
+        if class_annotation then
+          local class_name = class_annotation:match("%.([%w_]+)$") or class_annotation
+          local filtered_desc: {string} = {}
+          for _, d in ipairs(desc) do
+            if not d:match("^@class") then
+              table.insert(filtered_desc, d)
+            end
+          end
+
+          local found = false
+          for _, cls in ipairs(module.classes) do
+            if cls.name == class_name then
+              found = true
+              for _, field in ipairs(fields) do
+                table.insert(cls.fields, field)
+              end
+              break
+            end
+          end
+          if not found then
+            table.insert(module.classes, {
+              name = class_name,
+              module = module_name,
+              fields = fields,
+              methods = {},
+              description = filtered_desc,
+            })
+          end
+        end
+        -- Clear anno_lines and start collecting the new class
+        anno_lines = {}
+      end
+
       table.insert(anno_lines, line)
+      -- Check if this is a @class line - if so, keep collecting annotations
+      if line:match("^%-%-%-@class%s+") then
+        local cls_name = line:match("@class%s+([%w_%.]+)")
+        in_class_block = true
+      end
       i = i + 1
     -- Parse constant: NAME = value, or NAME = nil,
     elseif line:match("^%s*([A-Z][A-Z0-9_]*)%s*=%s*") then
@@ -405,7 +576,7 @@ local function parse_module(source: string, module_name: string): ModuleDecl
           end
         end
         if not already_exists then
-          local desc, _, returns, _, _ = parse_annotations(anno_lines)
+          local desc, _, returns, _, _, _ = parse_annotations(anno_lines)
           local const_type = "integer"
           if #returns > 0 and returns[1].description == "type" then
             const_type = returns[1].return_type
@@ -423,7 +594,98 @@ local function parse_module(source: string, module_name: string): ModuleDecl
     elseif line:match("^function%s+" .. module_name .. "%.([%w_]+)%s*%(") then
       local fname = line:match("^function%s+" .. module_name .. "%.([%w_]+)%s*%(")
       local params_str = line:match("%((.-)%)")
-      local desc, params, returns, nodiscard, _ = parse_annotations(anno_lines)
+
+      -- Check if there's a @class in the annotations - if so, split and process separately
+      local class_start_idx = 0
+      for idx, anno_line in ipairs(anno_lines) do
+        if anno_line:match("^%-%-%-@class%s+") then
+          class_start_idx = idx
+          break
+        end
+      end
+
+      if class_start_idx > 0 then
+        -- Split annotations into class block and function block
+        local class_lines: {string} = {}
+        local func_lines: {string} = {}
+
+        -- Everything before @class goes to function
+        for idx = 1, class_start_idx - 1 do
+          table.insert(func_lines, anno_lines[idx])
+        end
+
+        -- Find where class block ends (last @field line + any trailing blank comments)
+        local class_end_idx = class_start_idx
+        for idx = class_start_idx, #anno_lines do
+          local anno_line = anno_lines[idx]
+          if anno_line:match("^%-%-%-@class%s+") or anno_line:match("^%-%-%-@field%s+") then
+            class_end_idx = idx
+          elseif idx > class_start_idx and anno_line:match("^%-%-%-$") then
+            -- Blank comment after @field might be part of class or separator
+            -- Check if next line is still a field
+            if idx < #anno_lines and anno_lines[idx + 1]:match("^%-%-%-@field%s+") then
+              class_end_idx = idx
+            else
+              -- This is the separator between class and function docs
+              break
+            end
+          elseif idx > class_start_idx then
+            -- Hit a non-class annotation (like description or @param)
+            break
+          end
+        end
+
+        -- Extract class lines
+        for idx = class_start_idx, class_end_idx do
+          table.insert(class_lines, anno_lines[idx])
+        end
+
+        -- Everything after class block goes to function
+        for idx = class_end_idx + 1, #anno_lines do
+          table.insert(func_lines, anno_lines[idx])
+        end
+
+        -- Process the class
+        if #class_lines > 0 then
+          local _, _, _, _, class_annotation, class_fields = parse_annotations(class_lines)
+          if class_annotation then
+            local class_name = class_annotation:match("%.([%w_]+)$") or class_annotation
+
+            local found = false
+            for _, cls in ipairs(module.classes) do
+              if cls.name == class_name then
+                found = true
+                for _, field in ipairs(class_fields) do
+                  table.insert(cls.fields, field)
+                end
+                break
+              end
+            end
+            if not found then
+              table.insert(module.classes, {
+                name = class_name,
+                module = module_name,
+                fields = class_fields,
+                methods = {},
+                description = {},
+              })
+            end
+          end
+        end
+
+        -- Use func_lines for function processing
+        anno_lines = func_lines
+      end
+
+      local desc, params, returns, nodiscard, _, _ = parse_annotations(anno_lines)
+
+      -- If no @param annotations, infer parameter names from function signature
+      -- Make all inferred parameters optional since we don't have type info
+      if #params == 0 and params_str and params_str ~= "" then
+        for pname in params_str:gmatch("([%w_]+)") do
+          table.insert(params, {name = pname, param_type = "any", description = "", optional = true})
+        end
+      end
 
       local func: FuncDecl = {
         name = fname,
@@ -442,7 +704,16 @@ local function parse_module(source: string, module_name: string): ModuleDecl
       local full_class_name, method_name = line:match("^function%s+([%w_%.]+):([%w_]+)%s*%(")
       -- Extract just the class name without module prefix
       local class_name = full_class_name:match("%.([%w_]+)$") or full_class_name
-      local desc, params, returns, nodiscard, _ = parse_annotations(anno_lines)
+      local method_params_str = line:match("%((.-)%)")
+      local desc, params, returns, nodiscard, _, _ = parse_annotations(anno_lines)
+
+      -- If no @param annotations, infer parameter names from method signature
+      -- Make all inferred parameters optional since we don't have type info
+      if #params == 0 and method_params_str and method_params_str ~= "" then
+        for pname in method_params_str:gmatch("([%w_]+)") do
+          table.insert(params, {name = pname, param_type = "any", description = "", optional = true})
+        end
+      end
 
       local method: FuncDecl = {
         name = method_name,
@@ -475,20 +746,81 @@ local function parse_module(source: string, module_name: string): ModuleDecl
       end
       anno_lines = {}
       i = i + 1
-    -- Parse class annotation followed by local or assignment
-    elseif line:match("^%-%-%-@class%s+") then
-      local class_annotation = line:match("^%-%-%-@class%s+([%w_%.]+)")
-      if class_annotation then
-        -- Remove module prefix if present
-        local class_name = class_annotation:match("%.([%w_]+)$") or class_annotation
-        local desc, _, _, _, _ = parse_annotations(anno_lines)
-        table.insert(desc, 1, line:match("^%-%-%-@class%s+(.*)$") or "")
+    else
+      -- Not a recognized pattern - check if we have accumulated a @class block
+      if in_class_block and #anno_lines > 0 then
+        -- Process accumulated @class with @field annotations
+        local desc, _, _, _, class_annotation, fields = parse_annotations(anno_lines)
 
-        -- Check if class already exists
+        if class_annotation then
+          -- Remove module prefix if present
+          local class_name = class_annotation:match("%.([%w_]+)$") or class_annotation
+
+          -- Remove @class line from description (it's not descriptive text)
+          local filtered_desc: {string} = {}
+          for _, d in ipairs(desc) do
+            if not d:match("^@class") then
+              table.insert(filtered_desc, d)
+            end
+          end
+
+          -- Check if class already exists
+          local found = false
+          local existing_class: ClassDecl = nil
+          for _, cls in ipairs(module.classes) do
+            if cls.name == class_name then
+              found = true
+              existing_class = cls
+              break
+            end
+          end
+          if not found then
+            table.insert(module.classes, {
+              name = class_name,
+              module = module_name,
+              fields = fields,
+              methods = {},
+              description = filtered_desc,
+            })
+          else
+            -- Add fields to existing class
+            if existing_class then
+              for _, field in ipairs(fields) do
+                table.insert(existing_class.fields, field)
+              end
+            end
+          end
+        end
+        in_class_block = false
+      end
+      -- Clear annotations and move on
+      anno_lines = {}
+      i = i + 1
+    end
+  end
+
+  -- Process any remaining @class block at end of file
+  if in_class_block and #anno_lines > 0 then
+    for _, anno_line in ipairs(anno_lines) do
+      local class_annotation = anno_line:match("^%-%-%-@class%s+([%w_%.]+)")
+      if class_annotation then
+        local class_name = class_annotation:match("%.([%w_]+)$") or class_annotation
+        local desc, _, _, _, _, fields = parse_annotations(anno_lines)
+
+        local filtered_desc: {string} = {}
+        for _, d in ipairs(desc) do
+          if not d:match("^@class") then
+            table.insert(filtered_desc, d)
+          end
+        end
+
         local found = false
         for _, cls in ipairs(module.classes) do
           if cls.name == class_name then
             found = true
+            for _, field in ipairs(fields) do
+              table.insert(cls.fields, field)
+            end
             break
           end
         end
@@ -496,18 +828,13 @@ local function parse_module(source: string, module_name: string): ModuleDecl
           table.insert(module.classes, {
             name = class_name,
             module = module_name,
-            fields = {},
+            fields = fields,
             methods = {},
-            description = desc,
+            description = filtered_desc,
           })
         end
+        break
       end
-      anno_lines = {}
-      i = i + 1
-    else
-      -- Not a recognized pattern, clear annotations and move on
-      anno_lines = {}
-      i = i + 1
     end
   end
 
@@ -539,13 +866,31 @@ local function generate_dtl(module: ModuleDecl): string
 
   -- Generate sub-records (classes) first
   for _, cls in ipairs(module.classes) do
-    -- Skip if it's just a placeholder with no methods
+    -- Include classes with fields or methods
     if #cls.methods > 0 or #cls.fields > 0 then
       -- Class description
       for _, line in ipairs(format_description(cls.description, "")) do
         table.insert(out, line)
       end
       table.insert(out, "local record " .. cls.name)
+
+      -- Fields
+      for _, field in ipairs(cls.fields) do
+        -- Field description
+        if #field.description > 0 then
+          for _, line in ipairs(format_description(field.description, "  ")) do
+            table.insert(out, line)
+          end
+        end
+        local ftype = convert_type(field.field_type)
+        table.insert(out, "  " .. field.name .. ": " .. ftype)
+      end
+
+      -- Add blank line between fields and methods if both exist
+      if #cls.fields > 0 and #cls.methods > 0 then
+        table.insert(out, "")
+      end
+
       -- Methods
       for _, method in ipairs(cls.methods) do
         -- Method description
