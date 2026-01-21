@@ -237,6 +237,19 @@ $(o)/docs/cosmo/%.md: lib/types/cosmo/%.d.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@$(cosmic_bin) --doc $< > $@
 
+# Generate serialized doc index for embedding (uses bootstrap cosmic to avoid circular dep)
+doc_index_srcs := $(all_example_srcs) $(dtl_files)
+doc_index := $(o)/docs/.index.lua
+doc_index_script := lib/cosmic/doc-index.lua
+
+$(doc_index): $(doc_index_srcs) $(doc_index_script) | $(bootstrap_cosmic)
+	@mkdir -p $(@D)
+	@$(bootstrap_cosmic) $(doc_index_script) $(doc_index_srcs) > $@
+
+.PHONY: doc-index
+## Generate serialized documentation index
+doc-index: $(doc_index)
+
 .PHONY: doc-publish
 ## Publish docs to git branch (SOURCE_SHA required, uses $(o)/docs)
 doc-publish: $(all_docs) $(docs_publish) | $(bootstrap_cosmic)

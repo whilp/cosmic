@@ -26,6 +26,7 @@ local record Opts
   output: string           -- Output file for --embed (defaults to "cosmic")
   example: string          -- Input file for --example (run examples)
   doc: string              -- Input file for --doc (generate docs)
+  doc_index: {string}      -- Files for --doc-index (generate serialized index)
   docs: boolean | string   -- Show embedded docs (optional module/symbol query)
   error: string            -- Parse error message
 end
@@ -47,6 +48,7 @@ local function parse_args(): Opts
     output = nil,
     example = nil,
     doc = nil,
+    doc_index = {},
     docs = nil,
     error = nil,
   }
@@ -60,6 +62,7 @@ local function parse_args(): Opts
     { "output", "required", nil },
     { "example", "required", nil },
     { "doc", "required", nil },
+    { "doc-index", "required", nil },
     { "docs", "required", nil },
   }
 
@@ -186,6 +189,8 @@ local function parse_args(): Opts
     elseif opt == "doc" then
       opts.doc = optarg
       return opts
+    elseif opt == "doc-index" then
+      opts.doc_index[#opts.doc_index + 1] = optarg
     elseif opt == "docs" then
       opts.docs = optarg
       return opts
@@ -264,6 +269,7 @@ local function main(): integer, string
       io.write("  --output <file>          output file for --embed (default: cosmic)\n")
       io.write("  --example <file.tl>      run Example_* functions, check output\n")
       io.write("  --doc <file.tl>          generate markdown documentation\n")
+      io.write("  --doc-index <file>       build doc index (use multiple times)\n")
       io.write("  --docs <query>           show embedded docs (list|module[.symbol])\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
       io.write("\n")
@@ -338,6 +344,30 @@ local function main(): integer, string
       io.stderr:write(output .. "\n")
       return 1
     end
+  end
+
+  -- Handle --doc-index: generate serialized doc index from multiple files
+  if #opts.doc_index > 0 then
+    local doc = require("cosmic.doc")
+    local modules: {string:any} = {}
+
+    for _, file_path in ipairs(opts.doc_index) do
+      local module_doc, err = doc.parse_file(file_path)
+      if not module_doc then
+        io.stderr:write("error: " .. file_path .. ": " .. (err or "unknown") .. "\n")
+        return 1
+      end
+
+      -- Derive module name from file path
+      local name = file_path:gsub("%.d%.tl$", ""):gsub("%.tl$", "")
+      name = name:gsub("^lib/", ""):gsub("^types/", ""):gsub("/", ".")
+
+      modules[name] = module_doc
+    end
+
+    local cosmo = require("cosmo")
+    io.write(cosmo.EncodeLua({ modules = modules }))
+    return 0
   end
 
   -- Handle --docs

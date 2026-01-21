@@ -3,16 +3,17 @@
 
 local docs = require("cosmic.docs")
 
--- Test extract_description (via module inspection)
-local function test_path_to_module()
-  -- Test that the module can be loaded
+-- Test module loads correctly
+local function test_module_loads()
   assert(docs, "docs module should load")
   assert(docs.run, "docs.run should exist")
   assert(docs.has_docs, "docs.has_docs should exist")
   assert(docs.list_topics, "docs.list_topics should exist")
-  print("test_path_to_module: PASS")
+  assert(docs.load_index, "docs.load_index should exist")
+  assert(docs.render_module, "docs.render_module should exist")
+  print("test_module_loads: PASS")
 end
-test_path_to_module()
+test_module_loads()
 
 -- Test has_docs returns a boolean
 local function test_has_docs()
@@ -22,39 +23,88 @@ local function test_has_docs()
 end
 test_has_docs()
 
--- Test run with no docs embedded
-local function test_run_no_docs()
-  -- When no docs are embedded, run should return an error
+-- Test load_index
+local function test_load_index()
+  local index, err = docs.load_index()
+  -- Either we have docs or we get an error message
+  if index then
+    assert(type(index) == "table", "index should be a table")
+    assert(index.modules, "index should have modules")
+    print("test_load_index: PASS (docs available)")
+  else
+    assert(type(err) == "string", "error should be a string")
+    print("test_load_index: PASS (no docs: " .. err .. ")")
+  end
+end
+test_load_index()
+
+-- Test run with no query (list all)
+local function test_run_list()
   local result = docs.run()
   assert(result, "run should return a result")
-  assert(result.output, "result should have output")
-  -- Either it has docs (ok=true) or it doesn't (ok=false with error message)
-  if not result.ok then
-    assert(result.output:match("no documentation"), "error should mention no documentation")
+  assert(type(result.ok) == "boolean", "result.ok should be a boolean")
+  assert(type(result.output) == "string", "result.output should be a string")
+  if result.ok then
+    assert(result.output:match("cosmic documentation") or result.output:match("Modules"),
+           "list output should mention documentation or modules")
   end
-  print("test_run_no_docs: PASS")
+  print("test_run_list: PASS")
 end
-test_run_no_docs()
+test_run_list()
 
--- Test run with a query when no docs embedded
-local function test_run_with_query_no_docs()
-  local result = docs.run("cosmo.path")
+-- Test run with a module query
+local function test_run_module()
+  local result = docs.run("cosmic.doc")
   assert(result, "run should return a result")
-  assert(result.output, "result should have output")
-  -- Either it has docs or it doesn't
-  if not result.ok then
-    assert(result.output:match("documentation") or result.output:match("not found"),
-           "error should mention documentation or not found")
+  assert(type(result.ok) == "boolean", "result.ok should be a boolean")
+  assert(type(result.output) == "string", "result.output should be a string")
+  -- If docs are available, this should work; otherwise it returns an error
+  if result.ok then
+    assert(result.output:match("doc") or result.output:match("documentation"),
+           "module output should contain relevant content")
   end
-  print("test_run_with_query_no_docs: PASS")
+  print("test_run_module: PASS")
 end
-test_run_with_query_no_docs()
+test_run_module()
+
+-- Test run with a symbol query
+local function test_run_symbol()
+  local result = docs.run("cosmic.doc.parse")
+  assert(result, "run should return a result")
+  assert(type(result.ok) == "boolean", "result.ok should be a boolean")
+  assert(type(result.output) == "string", "result.output should be a string")
+  if result.ok then
+    assert(result.output:match("parse") or result.output:match("function"),
+           "symbol output should contain relevant content")
+  end
+  print("test_run_symbol: PASS")
+end
+test_run_symbol()
+
+-- Test run with invalid query
+local function test_run_invalid()
+  local result = docs.run("nonexistent.module.that.does.not.exist")
+  assert(result, "run should return a result")
+  assert(type(result.output) == "string", "result.output should be a string")
+  -- Should return an error for nonexistent module
+  if not result.ok then
+    assert(result.output:match("not found") or result.output:match("error"),
+           "error output should mention not found or error")
+  end
+  print("test_run_invalid: PASS")
+end
+test_run_invalid()
 
 -- Test list_topics
 local function test_list_topics()
   local topics = docs.list_topics()
   assert(type(topics) == "table", "list_topics should return a table")
-  -- If docs are embedded, topics will have entries; otherwise empty
+  -- Each topic should be a {name, description} pair
+  for _, topic in ipairs(topics) do
+    assert(type(topic) == "table", "each topic should be a table")
+    assert(type(topic[1]) == "string", "topic name should be a string")
+    assert(type(topic[2]) == "string", "topic description should be a string")
+  end
   print("test_list_topics: PASS (found " .. #topics .. " topics)")
 end
 test_list_topics()

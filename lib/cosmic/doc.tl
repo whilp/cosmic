@@ -849,6 +849,29 @@ local function parse_dtl(source: string, file_path: string): ModuleDoc
   return doc
 end
 
+--- Parse a file and return structured documentation.
+--- Reads a Teal file and extracts documentation as a ModuleDoc structure.
+--- Auto-detects .d.tl files and uses the appropriate parser.
+--- @param file_path string Path to the Teal file to document
+--- @return ModuleDoc Parsed documentation structure, or nil on error
+--- @return string Error message if parsing failed
+local function parse_file(file_path: string): ModuleDoc, string
+  local f, err = io.open(file_path, "r")
+  if not f then
+    return nil, "cannot open file: " .. (err or "unknown")
+  end
+
+  local source = f:read("*a")
+  f:close()
+
+  -- Auto-detect file type and use appropriate parser
+  if file_path:match("%.d%.tl$") then
+    return parse_dtl(source, file_path), nil
+  else
+    return parse(source, file_path), nil
+  end
+end
+
 --- Main entry point: parse file and render markdown.
 --- Reads a Teal file, extracts documentation, and renders it as markdown.
 --- Auto-detects .d.tl files and uses the appropriate parser.
@@ -876,18 +899,64 @@ local function render_file(file_path: string): boolean, string
   return true, markdown
 end
 
+local cosmo = require("cosmo")
+
+--- Serialize a ModuleDoc to Lua source code.
+--- Uses cosmo.EncodeLua to generate loadable Lua code.
+--- @param doc ModuleDoc The documentation to serialize
+--- @return string Lua source code representing the ModuleDoc
+local function serialize(doc: ModuleDoc): string
+  return cosmo.EncodeLua(doc as table)
+end
+
+--- A documentation index containing all modules.
+local record DocIndex
+  modules: {string:ModuleDoc}  -- module name -> doc
+end
+
+--- Serialize a DocIndex to Lua source code.
+--- @param index DocIndex The index to serialize
+--- @return string Lua source code representing the DocIndex
+local function serialize_index(index: DocIndex): string
+  return cosmo.EncodeLua(index as table)
+end
+
+--- Load a DocIndex from Lua source code.
+--- @param source string Lua source code from serialize_index
+--- @return DocIndex The loaded index, or nil on error
+--- @return string Error message if loading failed
+local function load_index(source: string): DocIndex, string
+  local chunk, err = load("return " .. source)
+  if not chunk then
+    return nil, "failed to parse index: " .. (err or "unknown")
+  end
+  local ok, result = pcall(chunk)
+  if not ok then
+    return nil, "failed to load index: " .. tostring(result)
+  end
+  return result as DocIndex, nil
+end
+
 local record DocModule
   parse: function(source: string, file_path: string): ModuleDoc
   parse_dtl: function(source: string, file_path: string): ModuleDoc
+  parse_file: function(file_path: string): ModuleDoc, string
   render: function(doc: ModuleDoc): string
   render_file: function(file_path: string): boolean, string
+  serialize: function(doc: ModuleDoc): string
+  serialize_index: function(index: DocIndex): string
+  load_index: function(source: string): DocIndex, string
 end
 
 local M: DocModule = {
   parse = parse,
   parse_dtl = parse_dtl,
+  parse_file = parse_file,
   render = render,
   render_file = render_file,
+  serialize = serialize,
+  serialize_index = serialize_index,
+  load_index = load_index,
 }
 
 return M

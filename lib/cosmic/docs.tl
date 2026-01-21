@@ -1,16 +1,62 @@
 --- Access embedded documentation from the cosmic binary.
 --- Provides a CLI interface similar to Go's `go doc` command.
---- Documentation is embedded in the binary at build time under /zip/.docs/
+--- Documentation is parsed at build time and embedded as a serialized Lua index.
 
 local cosmo = require("cosmo")
-local path_mod = require("cosmo.path")
-local walk = require("cosmic.walk")
 
---- A documentation topic (module or symbol).
-local record Topic
+--- A function parameter.
+local record Param
   name: string
-  path: string
+  param_type: string
   description: string
+end
+
+--- A function return value.
+local record Return
+  return_type: string
+  description: string
+end
+
+--- Documentation for a function.
+local record FunctionDoc
+  name: string
+  description: string
+  params: {Param}
+  returns: {Return}
+  signature: string
+  line: integer
+  is_local: boolean
+end
+
+--- Documentation for a record type.
+local record RecordDoc
+  name: string
+  description: string
+  fields: {{string, string, string}}  -- name, type, description
+  line: integer
+end
+
+--- Documentation for an example function.
+local record ExampleDoc
+  name: string
+  description: string
+  body: string
+  expected_output: string
+  line: integer
+end
+
+--- Complete documentation for a module.
+local record ModuleDoc
+  file: string
+  module_doc: string
+  functions: {FunctionDoc}
+  records: {RecordDoc}
+  examples: {ExampleDoc}
+end
+
+--- A documentation index containing all modules.
+local record DocIndex
+  modules: {string:ModuleDoc}
 end
 
 --- Result from a docs operation.
@@ -19,284 +65,336 @@ local record DocsResult
   output: string
 end
 
-local DOCS_PATH = "/zip/.docs"
+local INDEX_PATH = "/zip/.docs/index.lua"
+
+-- Cached index
+local cached_index: DocIndex = nil
+
+--- Load the embedded documentation index.
+--- @return DocIndex The documentation index, or nil if not available
+--- @return string Error message if loading failed
+local function load_index(): DocIndex, string
+  if cached_index then
+    return cached_index, nil
+  end
+
+  local source = cosmo.Slurp(INDEX_PATH)
+  if not source then
+    return nil, "no documentation index embedded"
+  end
+
+  local chunk, err = load("return " .. source)
+  if not chunk then
+    return nil, "failed to parse index: " .. (err or "unknown")
+  end
+
+  local ok, result = pcall(chunk)
+  if not ok then
+    return nil, "failed to load index: " .. tostring(result)
+  end
+
+  cached_index = result as DocIndex
+  return cached_index, nil
+end
 
 --- Check if embedded docs are available.
 --- @return boolean True if docs are embedded
 local function has_docs(): boolean
-  -- Try to collect any markdown files from the docs directory
-  local files = walk.collect(DOCS_PATH, "%.md$")
-  return #files > 0
+  local index, _ = load_index()
+  return index ~= nil
 end
 
---- List all markdown files recursively under the docs directory.
---- @param dir string Directory to scan
---- @return {string} List of file paths relative to DOCS_PATH
-local function list_docs_recursive(dir: string): {string}
-  local results: {string} = {}
+--- Extract first paragraph from module description.
+--- @param text string Full description text
+--- @return string First paragraph, truncated if needed
+local function first_paragraph(text: string): string
+  if not text then return "" end
 
-  -- Use walk.collect to find all .md files
-  local full_paths = walk.collect(DOCS_PATH, "%.md$")
+  -- Take first line or up to first blank line
+  local para = text:match("^([^\n]+)")
+  if not para then return "" end
 
-  for _, full_path in ipairs(full_paths) do
-    -- Convert absolute path to relative path from DOCS_PATH
-    local rel_path = full_path:sub(#DOCS_PATH + 2)  -- +2 to skip the trailing /
-    if rel_path ~= "README.md" then
-      table.insert(results, rel_path)
-    end
+  para = para:gsub("^%s+", ""):gsub("%s+$", "")
+
+  if #para > 80 then
+    para = para:sub(1, 77) .. "..."
   end
 
-  return results
-end
-
---- Extract module name from a doc file path.
---- Converts paths like "lib/cosmic/doc.md" or "cosmo/path.md" to "cosmic.doc" or "cosmo.path"
---- @param file_path string Path to the markdown file
---- @return string Module name in dot notation
-local function path_to_module(file_path: string): string
-  -- Remove .md extension
-  local name = file_path:gsub("%.md$", "")
-
-  -- Handle lib/cosmic/foo -> cosmic.foo
-  name = name:gsub("^lib/", "")
-
-  -- Handle lib/docs/foo -> docs.foo
-  name = name:gsub("^docs/", "")
-
-  -- Handle lib/types/foo -> types.foo
-  name = name:gsub("^types/", "")
-
-  -- Convert / to .
-  name = name:gsub("/", ".")
-
-  return name
-end
-
---- Extract the first paragraph (description) from markdown content.
---- @param content string Markdown content
---- @return string First paragraph after the header
-local function extract_description(content: string): string
-  -- Skip the header line and any blank lines
-  local lines: {string} = {}
-  local in_paragraph = false
-  local past_header = false
-
-  for line in content:gmatch("[^\n]*") do
-    if not past_header then
-      if line:match("^#") then
-        past_header = true
-      end
-    elseif in_paragraph then
-      if line:match("^%s*$") then
-        break
-      else
-        table.insert(lines, line)
-      end
-    elseif not line:match("^%s*$") and not line:match("^#") then
-      in_paragraph = true
-      table.insert(lines, line)
-    end
-  end
-
-  local desc = table.concat(lines, " "):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
-  -- Truncate if too long
-  if #desc > 80 then
-    desc = desc:sub(1, 77) .. "..."
-  end
-  return desc
+  return para
 end
 
 --- List all available documentation topics.
---- @return {Topic} List of available topics
-local function list_topics(): {Topic}
-  local topics: {Topic} = {}
-
-  local files = list_docs_recursive(DOCS_PATH)
-  for _, file in ipairs(files) do
-    local full_path = DOCS_PATH .. "/" .. file
-    local content = cosmo.Slurp(full_path)
-    local module_name = path_to_module(file)
-    local description = ""
-
-    if content then
-      description = extract_description(content)
-    end
-
-    table.insert(topics, {
-      name = module_name,
-      path = file,
-      description = description,
-    })
+--- @return {{string, string}} List of {name, description} pairs, sorted by name
+local function list_topics(): {{string, string}}
+  local index, err = load_index()
+  if not index then
+    return {}
   end
 
-  -- Sort topics by name
-  table.sort(topics, function(a: Topic, b: Topic): boolean
-    return a.name < b.name
+  local topics: {{string, string}} = {}
+  for name, doc in pairs(index.modules) do
+    local desc = first_paragraph(doc.module_doc)
+    table.insert(topics, {name, desc})
+  end
+
+  table.sort(topics, function(a: {string, string}, b: {string, string}): boolean
+    return a[1] < b[1]
   end)
 
   return topics
 end
 
---- Format the topic list for display.
---- @param topics {Topic} List of topics
+--- Render topic list as CLI output.
+--- @param topics {{string, string}} List of {name, description} pairs
 --- @return string Formatted output
-local function format_topic_list(topics: {Topic}): string
+local function render_topic_list(topics: {{string, string}}): string
   local lines: {string} = {}
 
   table.insert(lines, "cosmic documentation")
   table.insert(lines, "")
   table.insert(lines, "Modules:")
 
-  -- Find the longest module name for alignment
+  -- Find max name length for alignment
   local max_len = 0
   for _, topic in ipairs(topics) do
-    if #topic.name > max_len then
-      max_len = #topic.name
+    if #topic[1] > max_len then
+      max_len = #topic[1]
     end
   end
 
   for _, topic in ipairs(topics) do
-    local padding = string.rep(" ", max_len - #topic.name + 2)
-    table.insert(lines, "  " .. topic.name .. padding .. topic.description)
+    local padding = string.rep(" ", max_len - #topic[1] + 2)
+    table.insert(lines, "  " .. topic[1] .. padding .. topic[2])
   end
 
   table.insert(lines, "")
-  table.insert(lines, "Use 'cosmic --docs <module>' for more information about a module.")
-  table.insert(lines, "Use 'cosmic --docs <module>.<symbol>' for information about a specific function or type.")
+  table.insert(lines, "Use 'cosmic --docs <module>' for more information.")
+  table.insert(lines, "Use 'cosmic --docs <module>.<symbol>' for a specific symbol.")
 
   return table.concat(lines, "\n")
 end
 
---- Find the doc file path for a module name.
---- @param module_name string Module name in dot notation (e.g., "cosmo.path")
---- @return string Full path to the doc file, or nil if not found
-local function find_doc_file(module_name: string): string
-  local topics = list_topics()
+--- Render a function as CLI output.
+--- @param func FunctionDoc Function documentation
+--- @return string Formatted output
+local function render_function(func: FunctionDoc): string
+  local lines: {string} = {}
 
-  for _, topic in ipairs(topics) do
-    if topic.name == module_name then
-      return DOCS_PATH .. "/" .. topic.path
+  table.insert(lines, "### " .. func.name)
+  table.insert(lines, "")
+
+  if func.signature then
+    table.insert(lines, "```teal")
+    table.insert(lines, "function " .. func.name .. func.signature)
+    table.insert(lines, "```")
+    table.insert(lines, "")
+  end
+
+  if func.description then
+    table.insert(lines, func.description)
+    table.insert(lines, "")
+  end
+
+  if func.params and #func.params > 0 then
+    table.insert(lines, "**Parameters:**")
+    table.insert(lines, "")
+    for _, param in ipairs(func.params) do
+      local line = "- `" .. param.name .. "` (" .. param.param_type .. ")"
+      if param.description then
+        line = line .. " - " .. param.description
+      end
+      table.insert(lines, line)
+    end
+    table.insert(lines, "")
+  end
+
+  if func.returns and #func.returns > 0 then
+    table.insert(lines, "**Returns:**")
+    table.insert(lines, "")
+    for _, ret in ipairs(func.returns) do
+      local line = "- " .. ret.return_type
+      if ret.description then
+        line = line .. " - " .. ret.description
+      end
+      table.insert(lines, line)
+    end
+    table.insert(lines, "")
+  end
+
+  return table.concat(lines, "\n")
+end
+
+--- Render a record/type as CLI output.
+--- @param rec RecordDoc Record documentation
+--- @return string Formatted output
+local function render_record(rec: RecordDoc): string
+  local lines: {string} = {}
+
+  table.insert(lines, "### " .. rec.name)
+  table.insert(lines, "")
+
+  if rec.description then
+    table.insert(lines, rec.description)
+    table.insert(lines, "")
+  end
+
+  if rec.fields and #rec.fields > 0 then
+    table.insert(lines, "```teal")
+    table.insert(lines, "local record " .. rec.name)
+    for _, field in ipairs(rec.fields) do
+      local fname, ftype, fdesc = field[1], field[2], field[3]
+      if fdesc and fdesc ~= "" then
+        for desc_line in fdesc:gmatch("[^\n]+") do
+          table.insert(lines, "  -- " .. desc_line)
+        end
+      end
+      table.insert(lines, "  " .. fname .. ": " .. ftype)
+    end
+    table.insert(lines, "end")
+    table.insert(lines, "```")
+    table.insert(lines, "")
+  end
+
+  return table.concat(lines, "\n")
+end
+
+--- Render an example as CLI output.
+--- @param example ExampleDoc Example documentation
+--- @return string Formatted output
+local function render_example(example: ExampleDoc): string
+  local lines: {string} = {}
+
+  local title = example.name:gsub("^Example_?", ""):gsub("_", " ")
+  if title == "" then
+    title = "Basic usage"
+  end
+
+  table.insert(lines, "### " .. title)
+  table.insert(lines, "")
+
+  if example.description then
+    table.insert(lines, example.description)
+    table.insert(lines, "")
+  end
+
+  if example.body then
+    table.insert(lines, "```teal")
+    -- Clean up body - remove Output: section
+    local body = example.body
+    local output_start = body:find("%-%-%s*Output:")
+    if output_start then
+      body = body:sub(1, output_start - 1)
+    end
+    body = body:gsub("^%s*\n", ""):gsub("\n%s*$", "")
+    table.insert(lines, body)
+    table.insert(lines, "```")
+    table.insert(lines, "")
+  end
+
+  if example.expected_output then
+    table.insert(lines, "Output:")
+    table.insert(lines, "```")
+    table.insert(lines, example.expected_output)
+    table.insert(lines, "```")
+    table.insert(lines, "")
+  end
+
+  return table.concat(lines, "\n")
+end
+
+--- Render a full module as CLI output.
+--- @param name string Module name
+--- @param doc ModuleDoc Module documentation
+--- @return string Formatted output
+local function render_module(name: string, doc: ModuleDoc): string
+  local lines: {string} = {}
+
+  -- Extract simple name from path
+  local simple_name = name:match("([^%.]+)$") or name
+  table.insert(lines, "# " .. simple_name)
+  table.insert(lines, "")
+
+  if doc.module_doc then
+    table.insert(lines, doc.module_doc)
+    table.insert(lines, "")
+  end
+
+  -- Types/Records
+  if doc.records and #doc.records > 0 then
+    table.insert(lines, "## Types")
+    table.insert(lines, "")
+    for _, rec in ipairs(doc.records) do
+      table.insert(lines, render_record(rec))
+    end
+  end
+
+  -- Functions
+  if doc.functions and #doc.functions > 0 then
+    table.insert(lines, "## Functions")
+    table.insert(lines, "")
+    for _, func in ipairs(doc.functions) do
+      table.insert(lines, render_function(func))
+    end
+  end
+
+  -- Examples
+  if doc.examples and #doc.examples > 0 then
+    table.insert(lines, "## Examples")
+    table.insert(lines, "")
+    for _, example in ipairs(doc.examples) do
+      table.insert(lines, render_example(example))
+    end
+  end
+
+  return table.concat(lines, "\n")
+end
+
+--- Find a symbol in a module's documentation.
+--- @param doc ModuleDoc Module documentation
+--- @param symbol string Symbol name to find
+--- @return string Rendered symbol documentation, or nil if not found
+local function find_symbol(doc: ModuleDoc, symbol: string): string
+  -- Check functions
+  if doc.functions then
+    for _, func in ipairs(doc.functions) do
+      if func.name == symbol or func.name:lower() == symbol:lower() then
+        return render_function(func)
+      end
+    end
+  end
+
+  -- Check records
+  if doc.records then
+    for _, rec in ipairs(doc.records) do
+      if rec.name == symbol or rec.name:lower() == symbol:lower() then
+        return render_record(rec)
+      end
+    end
+  end
+
+  -- Check examples
+  if doc.examples then
+    for _, example in ipairs(doc.examples) do
+      local example_name = example.name:gsub("^Example_?", "")
+      if example_name == symbol or example_name:lower() == symbol:lower() then
+        return render_example(example)
+      end
     end
   end
 
   return nil
 end
 
---- Extract a specific section from markdown content.
---- @param content string Full markdown content
---- @param symbol string Symbol name to find (function, type, etc.)
---- @return string Section content or nil if not found
-local function extract_section(content: string, symbol: string): string
-  local lines: {string} = {}
-  local in_section = false
-  local section_level = 0
-
-  for line in content:gmatch("[^\n]*") do
-    if in_section then
-      -- Check if we hit another section of same or higher level
-      local level = line:match("^(#+)")
-      if level and #level <= section_level then
-        break
-      end
-      table.insert(lines, line)
-    else
-      -- Look for section header matching the symbol
-      local level, header = line:match("^(#+)%s*(.+)$")
-      if level and header then
-        -- Clean up header (remove backticks, etc.)
-        local clean_header = header:gsub("`", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if clean_header:lower() == symbol:lower() or clean_header == symbol then
-          in_section = true
-          section_level = #level
-          table.insert(lines, line)
-        end
-      end
-    end
-  end
-
-  if #lines == 0 then
-    return nil
-  end
-
-  return table.concat(lines, "\n")
-end
-
---- Show documentation for a module.
---- @param module_name string Module name in dot notation
---- @return DocsResult Result with documentation content
-local function show_module(module_name: string): DocsResult
-  local doc_path = find_doc_file(module_name)
-
-  if not doc_path then
-    return {
-      ok = false,
-      output = "error: documentation not found for '" .. module_name .. "'\n" ..
-               "Use 'cosmic --docs' to see available modules.",
-    }
-  end
-
-  local content = cosmo.Slurp(doc_path)
-  if not content then
-    return {
-      ok = false,
-      output = "error: failed to read documentation file",
-    }
-  end
-
-  return {
-    ok = true,
-    output = content,
-  }
-end
-
---- Show documentation for a specific symbol within a module.
---- @param module_name string Module name in dot notation
---- @param symbol string Symbol name (function, type, etc.)
---- @return DocsResult Result with documentation content
-local function show_symbol(module_name: string, symbol: string): DocsResult
-  local doc_path = find_doc_file(module_name)
-
-  if not doc_path then
-    return {
-      ok = false,
-      output = "error: documentation not found for '" .. module_name .. "'\n" ..
-               "Use 'cosmic --docs' to see available modules.",
-    }
-  end
-
-  local content = cosmo.Slurp(doc_path)
-  if not content then
-    return {
-      ok = false,
-      output = "error: failed to read documentation file",
-    }
-  end
-
-  local section = extract_section(content, symbol)
-  if not section then
-    return {
-      ok = false,
-      output = "error: symbol '" .. symbol .. "' not found in module '" .. module_name .. "'\n" ..
-               "Use 'cosmic --docs " .. module_name .. "' to see available symbols.",
-    }
-  end
-
-  return {
-    ok = true,
-    output = section,
-  }
-end
-
 --- Main entry point for the docs command.
 --- @param query string Optional query string (module or module.symbol)
 --- @return DocsResult Result with documentation content
 local function run(query?: string): DocsResult
-  -- Check if docs are available
-  if not has_docs() then
+  local index, err = load_index()
+  if not index then
     return {
       ok = false,
-      output = "error: no documentation embedded in this binary\n" ..
-               "Build cosmic with 'make cosmic-docs' to include documentation.",
+      output = "error: " .. (err or "no documentation embedded") .. "\n" ..
+               "Build with 'make cosmic' to include documentation.",
     }
   end
 
@@ -311,25 +409,24 @@ local function run(query?: string): DocsResult
     end
     return {
       ok = true,
-      output = format_topic_list(topics),
+      output = render_topic_list(topics),
     }
   end
 
-  -- Parse query: module or module.symbol
-  -- Handle cases like "cosmo.path" (module) vs "cosmo.path.basename" (module.symbol)
-  -- We need to try progressively shorter module names
+  -- Try exact module match first
+  if index.modules[query] then
+    return {
+      ok = true,
+      output = render_module(query, index.modules[query]),
+    }
+  end
+
+  -- Try module.symbol pattern
   local parts: {string} = {}
   for part in query:gmatch("[^%.]+") do
     table.insert(parts, part)
   end
 
-  -- Try full query as module name first
-  local doc_path = find_doc_file(query)
-  if doc_path then
-    return show_module(query)
-  end
-
-  -- Try module.symbol pattern (last part is symbol)
   if #parts >= 2 then
     local symbol = parts[#parts]
     local module_parts: {string} = {}
@@ -338,9 +435,21 @@ local function run(query?: string): DocsResult
     end
     local module_name = table.concat(module_parts, ".")
 
-    doc_path = find_doc_file(module_name)
-    if doc_path then
-      return show_symbol(module_name, symbol)
+    local doc = index.modules[module_name]
+    if doc then
+      local rendered = find_symbol(doc, symbol)
+      if rendered then
+        return {
+          ok = true,
+          output = rendered,
+        }
+      else
+        return {
+          ok = false,
+          output = "error: symbol '" .. symbol .. "' not found in '" .. module_name .. "'\n" ..
+                   "Use 'cosmic --docs " .. module_name .. "' to see available symbols.",
+        }
+      end
     end
   end
 
@@ -348,20 +457,24 @@ local function run(query?: string): DocsResult
   return {
     ok = false,
     output = "error: documentation not found for '" .. query .. "'\n" ..
-             "Use 'cosmic --docs' to see available modules.",
+             "Use 'cosmic --docs list' to see available modules.",
   }
 end
 
 local record DocsModule
   run: function(query?: string): DocsResult
   has_docs: function(): boolean
-  list_topics: function(): {Topic}
+  list_topics: function(): {{string, string}}
+  load_index: function(): DocIndex, string
+  render_module: function(name: string, doc: ModuleDoc): string
 end
 
 local M: DocsModule = {
   run = run,
   has_docs = has_docs,
   list_topics = list_topics,
+  load_index = load_index,
+  render_module = render_module,
 }
 
 return M
