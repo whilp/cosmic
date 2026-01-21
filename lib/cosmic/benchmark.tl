@@ -187,13 +187,18 @@ end
     return result
   end
 
-  -- Suppress output during benchmark (we don't care about stdout)
-  local old_print = print
-  local old_write = io.write
-  local function noop_print(_: any) end
-  local function noop_write(_: any): FILE, string, integer return io.stdout end
-  _G.print = noop_print
-  io.write = noop_write
+  -- Redirect stdout/stderr to /dev/null during benchmark
+  -- Note: print() uses C-level stdout directly, so we also override it
+  local old_stdout = io.stdout
+  local old_stderr = io.stderr
+  local old_print = _G.print
+  local devnull = io.open("/dev/null", "w")
+  if devnull then
+    io.stdout = devnull
+    io.stderr = devnull
+    io.output(devnull)
+    _G.print = function() end
+  end
 
   -- Auto-calibrate: start with N=1 and increase until we reach MIN_DURATION
   local n = 1
@@ -205,8 +210,14 @@ end
     for _ = 1, n do
       local run_ok, run_err: boolean, any = pcall(bench_fn as function())
       if not run_ok then
-        _G.print = old_print
-        io.write = old_write
+        -- Restore stdout/stderr before returning
+        if devnull then
+          io.stdout = old_stdout
+          io.stderr = old_stderr
+          io.output(old_stdout)
+          _G.print = old_print
+          devnull:close()
+        end
         result.error = "runtime error: " .. tostring(run_err)
         return result
       end
@@ -225,8 +236,14 @@ end
     end
   end
 
-  _G.print = old_print
-  io.write = old_write
+  -- Restore stdout/stderr
+  if devnull then
+    io.stdout = old_stdout
+    io.stderr = old_stderr
+    io.output(old_stdout)
+    _G.print = old_print
+    devnull:close()
+  end
 
   -- Calculate results
   result.iterations = n
