@@ -4,8 +4,9 @@
 # Type definition generation (define early so it's available to all modules)
 type_modules := unix path getopt lsqlite3 re maxmind finger argon2 goodsocket
 type_gen_outputs := $(patsubst %,lib/types/cosmo/%.d.tl,$(type_modules))
-# Manual fixes: zip is hand-written (unix/getopt now generated from upstream cosmopolitan)
-type_manual_fixes := lib/types/cosmo/zip.d.tl
+# Manual: zip.d.tl (gentype doesn't support zip module yet; waiting on upstream)
+# Note: Once gentype supports zip, add it to type_modules above
+type_manual_fixes :=
 
 # Bootstrap module: setup cosmic-lua for build process
 modules += bootstrap
