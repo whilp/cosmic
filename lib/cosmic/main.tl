@@ -26,6 +26,7 @@ local record Opts
   output: string           -- Output file for --embed (defaults to "cosmic")
   example: string          -- Input file for --example (run examples)
   doc: string              -- Input file for --doc (generate docs)
+  docs: boolean | string   -- Show embedded docs (optional module/symbol query)
   error: string            -- Parse error message
 end
 
@@ -46,6 +47,7 @@ local function parse_args(): Opts
     output = nil,
     example = nil,
     doc = nil,
+    docs = nil,
     error = nil,
   }
 
@@ -58,6 +60,7 @@ local function parse_args(): Opts
     { "output", "required", nil },
     { "example", "required", nil },
     { "doc", "required", nil },
+    { "docs", "required", nil },
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -183,6 +186,9 @@ local function parse_args(): Opts
     elseif opt == "doc" then
       opts.doc = optarg
       return opts
+    elseif opt == "docs" then
+      opts.docs = optarg
+      return opts
     end
   end
 
@@ -258,6 +264,7 @@ local function main(): integer, string
       io.write("  --output <file>          output file for --embed (default: cosmic)\n")
       io.write("  --example <file.tl>      run Example_* functions, check output\n")
       io.write("  --doc <file.tl>          generate markdown documentation\n")
+      io.write("  --docs <query>           show embedded docs (list|module[.symbol])\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
       io.write("\n")
       io.write("Standard lua options:\n")
@@ -329,6 +336,24 @@ local function main(): integer, string
       return 0
     else
       io.stderr:write(output .. "\n")
+      return 1
+    end
+  end
+
+  -- Handle --docs
+  if opts.docs then
+    local docs = require("cosmic.docs")
+    local query = opts.docs as string
+    -- Special keywords to list all modules
+    if query == "list" or query == "all" or query == "." then
+      query = nil
+    end
+    local result = docs.run(query)
+    if result.ok then
+      io.write(result.output .. "\n")
+      return 0
+    else
+      io.stderr:write(result.output .. "\n")
       return 1
     end
   end

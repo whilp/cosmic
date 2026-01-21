@@ -10,7 +10,7 @@ cosmic_deps := cosmos tl teal-types
 
 cosmic_built := $(o)/cosmic/.built
 
-$(cosmic_bin): $$(cosmic_lua) $(cosmic_main) $(cosmic_args) $$(tl_staged) $$(teal-types_staged)
+$(cosmic_bin): $$(cosmic_lua) $(cosmic_main) $(cosmic_args) $$(tl_staged) $$(teal-types_staged) $(all_docs)
 	@rm -rf $(cosmic_built)
 	@mkdir -p $(cosmic_built)/.lua/cosmic $(@D)
 	@$(cp) $(cosmic_lua) $(cosmic_built)/.lua/cosmic/
@@ -18,9 +18,10 @@ $(cosmic_bin): $$(cosmic_lua) $(cosmic_main) $(cosmic_args) $$(tl_staged) $$(tea
 	@$(cp) $(tl_dir)/tl.lua $(cosmic_built)/.lua/
 	@cp -r $(teal-types_dir)/types $(cosmic_built)/.lua/teal-types
 	@cp -r lib/types $(cosmic_built)/.lua/types
+	@cp -r $(o)/docs $(cosmic_built)/.docs
 	@$(cp) $(cosmos_lua_bin) $@
 	@chmod +x $@
-	@cd $(cosmic_built) && $(CURDIR)/$(cosmos_zip_bin) -qr $(CURDIR)/$@ .lua
+	@cd $(cosmic_built) && $(CURDIR)/$(cosmos_zip_bin) -qr $(CURDIR)/$@ .lua .docs
 	@$(cosmos_zip_bin) -qj $@ $(cosmic_main) $(cosmic_args)
 
 cosmic: $(cosmic_bin)
