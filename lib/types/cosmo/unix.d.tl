@@ -50,7 +50,7 @@ local record Memory
   --- word, then `false` shall be returned along with the word.
   --- This operation happens atomically and provides the same memory
   --- barrier semantics as the aligned x86 LOCK CMPXCHG instruction.
-  cmpxchg: function(self: Memory, word_index: number, old: number, new: number): boolean
+  cmpxchg: function(self: Memory, word_index: number, old: number, new: number): boolean, number
   --- Fetches then adds value.
   --- This method modifies the word at `word_index` to contain the sum of
   --- value and the `value` paremeter. This method then returns the value
@@ -135,7 +135,7 @@ local record Dir
   --- - `DT_UNKNOWN`
   --- Note: This function also serves as the `__call` metamethod, so that
   --- `unix.Dir` objects may be used as a for loop iterator.
-  read: function(self: Dir): string
+  read: function(self: Dir): string, number, number, number
   --- Returns `EOPNOTSUPP` if using a `/zip/...` path or if using Windows NT.
   fd: function(self: Dir): number
   tell: function(self: Dir): number
@@ -149,10 +149,10 @@ end
 local record Rusage
   --- It's always the case that `0 ≤ nanos < 1e9`.
   --- On Windows NT this is collected from GetProcessTimes().
-  utime: function(self: Rusage): number
+  utime: function(self: Rusage): number, number
   --- It's always the case that `0 ≤ nanos < 1e9`.
   --- On Windows NT this is collected from GetProcessTimes().
-  stime: function(self: Rusage): number
+  stime: function(self: Rusage): number, number
   --- On Windows NT this is collected from
   --- `NtProcessMemoryCountersEx::PeakWorkingSetSize / 1024`.
   maxrss: function(self: Rusage): number
@@ -252,16 +252,16 @@ local record Stat
   --- Write('%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%.9d%+.2d%.2d % {
   --- year, mon, mday, hour, min, sec, nanos,
   --- gmtoffsec / (60 * 60), math.abs(gmtoffsec) % 60})
-  birthtim: function(self: Stat): number
-  mtim: function(self: Stat): number
+  birthtim: function(self: Stat): number, number
+  mtim: function(self: Stat): number, number
   --- Please note that file systems are sometimes mounted with `noatime`
   --- out of concern for i/o performance. Linux also provides `O_NOATIME`
   --- as an option for open().
   --- On Windows NT this is the same as birth time.
-  atim: function(self: Stat): number
+  atim: function(self: Stat): number, number
   --- Means time file status was last changed on UNIX.
   --- On Windows NT this is the same as birth time.
-  ctim: function(self: Stat): number
+  ctim: function(self: Stat): number, number
   --- This provides some indication of how much physical storage a file
   --- actually consumes. For example, for small file systems, your system
   --- might report this number as being 8, which means 4096 bytes.
@@ -841,20 +841,20 @@ local record unix
   --- This function never returns on success.
   --- `EAGAIN` is returned if you've enforced a max number of
   --- processes using `setrlimit(RLIMIT_NPROC)`.
-  execve: function(prog: string, args: {string}, env: {string}): nil
+  execve: function(prog: string, args: {string}, env: {string}): nil,
   --- Executes program with PATH search.
   --- Unlike `execve()`, this function searches for `prog` in the
   --- directories listed in the `PATH` environment variable.
   --- If `argv` is not provided, it defaults to `{prog}`.
   --- This function never returns on success.
-  execvp: function(prog: string, argv?: {string}): nil
+  execvp: function(prog: string, argv?: {string}): nil,
   --- Executes program with PATH search and custom environment.
   --- Like `execvp()` but also allows specifying a custom environment.
   --- `envp` is a string list table where each string is typically
   --- in the form `"KEY=value"`. If not specified, inherits the
   --- current environment.
   --- This function never returns on success.
-  execvpe: function(prog: string, argv: {string}, envp?: {string}): nil
+  execvpe: function(prog: string, argv: {string}, envp?: {string}): nil,
   --- Executes program from file descriptor.
   --- This allows executing a program that has already been opened,
   --- which can be useful for executing programs that have been
@@ -865,7 +865,7 @@ local record unix
   --- `envp` is the environment. If not specified, inherits the
   --- current environment.
   --- This function never returns on success.
-  fexecve: function(fd: number, argv: {string}, envp?: {string}): nil
+  fexecve: function(fd: number, argv: {string}, envp?: {string}): nil,
   --- Spawns a new process.
   --- Unlike `fork()` + `execve()`, this uses `posix_spawn()` which
   --- can be more efficient on some platforms.
@@ -933,7 +933,7 @@ local record unix
   --- assert(unix.close(reader))
   --- assert(unix.wait())
   --- end
-  pipe: function(flags?: number): number
+  pipe: function(flags?: number): number, number
   --- Waits for subprocess to terminate.
   --- `pid` defaults to `-1` which means any child process. Setting
   --- `pid` to `0` is equivalent to `-getpid()`. If `pid < -1` then
@@ -967,7 +967,7 @@ local record unix
   --- break
   --- end
   --- end
-  wait: function(pid?: number, options?: number): number
+  wait: function(pid?: number, options?: number): number, number
   --- Returns `true` if process exited cleanly.
   WIFEXITED: function(wstatus: number): boolean
   --- Returns code passed to exit() assuming `WIFEXITED(wstatus)` is true.
@@ -1054,7 +1054,7 @@ local record unix
   --- unix.write(fd, "hello")
   --- unix.close(fd)
   --- unix.unlink(path)
-  mkstemp: function(template: string): number
+  mkstemp: function(template: string): number, string
   --- Changes current directory to `path`.
   chdir: function(path: string): boolean
   --- Removes file at `path`.
@@ -1414,10 +1414,10 @@ local record unix
   --- Returns `EINVAL` if clock isn't supported on platform.
   --- This function only fails if `clock` is invalid.
   --- This function goes fastest on Linux and Windows.
-  clock_gettime: function(clock?: number): number
+  clock_gettime: function(clock?: number): number, number
   --- Sleeps with nanosecond precision.
   --- Returns `EINTR` if a signal was received while waiting.
-  nanosleep: function(seconds: number, nanos?: number): number
+  nanosleep: function(seconds: number, nanos?: number): number, number
   --- These functions are used to make programs slower by asking the
   --- operating system to flush data to the physical medium.
   sync: function()
@@ -1465,7 +1465,7 @@ local record unix
   --- You may bitwise OR any of the following into `type`:
   --- - `SOCK_CLOEXEC`
   --- - `SOCK_NONBLOCK`
-  socketpair: function(family?: number, type?: number, protocol?: number): number
+  socketpair: function(family?: number, type?: number, protocol?: number): number, number
   --- Binds socket.
   --- `ip` and `port` are in host endian order. For example, if you
   --- wanted to listen on `1.2.3.4:31337` you could do any of these
@@ -1717,7 +1717,7 @@ local record unix
   --- - `MSG_DONTROUTE`
   --- - `MSG_PEEK`
   --- - `MSG_OOB`
-  recvfrom: function(fd: number, bufsiz?: number, flags?: number): string
+  recvfrom: function(fd: number, bufsiz?: number, flags?: number): string, number, number
   --- This is the same as `write` except it has a `flags` argument
   --- that's intended for sockets.
   --- - `MSG_NOSIGNAL`: Don't SIGPIPE on EOF
@@ -1805,10 +1805,10 @@ local record unix
   --- assert(gotsigusr1)
   --- assert(unix.sigprocmask(unix.SIG_SETMASK, oldmask))
   --- It's a good idea to not do too much work in a signal handler.
-  sigaction: function(sig: number, handler?: function | number, flags?: number, mask?: Sigset): function | number
+  sigaction: function(sig: number, handler?: function | number, flags?: number, mask?: Sigset): function | number, number
   --- Waits for signal to be delivered.
   --- The signal mask is temporarily replaced with `mask` during this system call.
-  sigsuspend: function(mask?: Sigset): nil
+  sigsuspend: function(mask?: Sigset): nil,
   --- Causes `SIGALRM` signals to be generated at some point(s) in the
   --- future. The `which` parameter should be `ITIMER_REAL`.
   --- Here's an example of how to create a 400 ms interval timer:
@@ -1824,7 +1824,7 @@ local record unix
   --- Here's how you'd do a single-shot timeout in 1 second:
   --- unix.sigaction(unix.SIGALRM, MyOnSigAlrm, unix.SA_RESETHAND)
   --- unix.setitimer(unix.ITIMER_REAL, 0, 0, 1, 0)
-  setitimer: function(which: number, intervalsec: number, intervalns: number, valuesec: number, valuens: number): number
+  setitimer: function(which: number, intervalsec: number, intervalns: number, valuesec: number, valuens: number): number, number, number, number
   --- Turns platform-specific `sig` code into its symbolic name.
   --- For example:
   --- >: unix.strsignal(9)
@@ -1856,7 +1856,7 @@ local record unix
   --- as such are inherited by subprocesses.
   setrlimit: function(resource: number, soft: number, hard?: number): boolean
   --- Returns information about resource limits for current process.
-  getrlimit: function(resource: number): number
+  getrlimit: function(resource: number): number, number
   --- Adjusts the nice value (scheduling priority) of the calling process.
   --- The nice value ranges from -20 (highest priority) to 19 (lowest priority).
   --- Only privileged processes can lower the nice value (increase priority).
@@ -2135,7 +2135,7 @@ local record unix
   --- - `EPERM` if pledge() is used without `tty` in lenient mode
   --- No other error numbers are possible.
   isatty: function(fd: number): boolean
-  tiocgwinsz: function(fd: number): number
+  tiocgwinsz: function(fd: number): number, number
   --- Returns file descriptor of open anonymous file.
   --- This creates a secure temporary file inside `$TMPDIR`. If it isn't
   --- defined, then `/tmp` is used on UNIX and GetTempPath() is used on

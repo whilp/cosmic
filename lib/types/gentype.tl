@@ -244,39 +244,75 @@ local function parse_annotations(lines: {string}): {string}, {Param}, {Return}, 
     end
 
     -- @return type [name] [description]
-    -- Each @return line describes one return value
+    -- Can have multiple return values: "@return type1 name1, type2 name2" (for function signatures)
+    -- But NOT for descriptions containing commas
     local full_return = line:match("^%-%-%-@return%s+(.+)$")
     if full_return then
       full_return = full_return:match("^%s*(.-)%s*$")  -- trim
       local rtype: string = nil
       local rdesc: string = nil
 
-      -- Check if it's an inline record type: { ... }
-      if full_return:match("^{") then
-        -- Match everything up to closing } or }[]
-        rtype, rdesc = full_return:match("^({.-%}%[?%]?)%s+(.*)$")
-        if not rtype then
-          rtype = full_return:match("^({.-%}%[?%]?)%s*$")
+      -- Check if it looks like multiple typed returns (e.g., "integer reader, integer writer")
+      -- Pattern: "type name, type name" where both parts start with a type word
+      local parts = {}
+      local in_angle = 0
+      local current = ""
+      for i = 1, #full_return do
+        local c = full_return:sub(i, i)
+        if c == "<" then
+          in_angle = in_angle + 1
+        elseif c == ">" then
+          in_angle = in_angle - 1
         end
-      -- Check if it contains angle brackets (generic type like table<K, V>)
-      elseif full_return:match("<.->") then
-        -- Match generic type, everything after closing > is description
-        rtype, rdesc = full_return:match("^([^%s]+<.->)%s+(.*)$")
-        if not rtype then
-          rtype = full_return:match("^([^%s]+<.->)%s*$")
+        if c == "," and in_angle == 0 then
+          -- Only split on commas outside angle brackets
+          -- Check if what follows looks like a type (word at start)
+          local rest = full_return:sub(i + 1):match("^%s*([%w_]+)")
+          if rest and (rest == "integer" or rest == "number" or rest == "string" or rest == "boolean") then
+            -- This looks like another typed return value
+            table.insert(parts, current)
+            current = ""
+          else
+            -- Comma is part of description, keep it
+            current = current .. c
+          end
+        else
+          current = current .. c
         end
       end
-      -- Simple type: just first word
-      if not rtype then
-        rtype, rdesc = full_return:match("^([^%s]+)%s+(.*)$")
-        if not rtype then
-          rtype = full_return
+      table.insert(parts, current)
+
+      -- Process each part
+      for _, return_part in ipairs(parts) do
+        return_part = return_part:match("^%s*(.-)%s*$")  -- trim
+        local part_type: string = nil
+        local part_desc: string = nil
+
+        -- Check if it's an inline record type: { ... }
+        if return_part:match("^{") then
+          -- Match everything up to closing } or }[]
+          part_type, part_desc = return_part:match("^({.-%}%[?%]?)%s+(.*)$")
+          if not part_type then
+            part_type = return_part:match("^({.-%}%[?%]?)%s*$")
+          end
+        -- Check if it contains angle brackets (generic type like table<K, V>)
+        elseif return_part:match("<.->") then
+          -- Match generic type, everything after closing > is description
+          part_type, part_desc = return_part:match("^([^%s]+<.->)%s+(.*)$")
+          if not part_type then
+            part_type = return_part:match("^([^%s]+<.->)%s*$")
+          end
         end
-      end
-      if rtype and rtype ~= "" then
-        -- Strip trailing comma (from formats like "@return nil, unix.Errno error")
-        rtype = rtype:gsub(",$", "")
-        table.insert(returns, {return_type = rtype, description = rdesc or ""})
+        -- Simple type: just first word
+        if not part_type then
+          part_type, part_desc = return_part:match("^([^%s]+)%s+(.*)$")
+          if not part_type then
+            part_type = return_part
+          end
+        end
+        if part_type and part_type ~= "" then
+          table.insert(returns, {return_type = part_type, description = part_desc or ""})
+        end
       end
     end
 

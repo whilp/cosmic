@@ -77,7 +77,7 @@ local function run(files: {string}, output?: string, exe_path?: string): EmbedRe
   local zip_err: any
   zip_result, zip_err = zip.open(output, "a")
   if not zip_result then
-    return {ok = false, message = "error: failed to open zip for appending: " .. (zip_err or "unknown error"), file_count = 0}
+    return {ok = false, message = "error: failed to open zip for appending: " .. tostring(zip_err or "unknown error"), file_count = 0}
   end
 
   -- Cast to ZipAppender since we know mode "a" returns an Appender
@@ -88,7 +88,7 @@ local function run(files: {string}, output?: string, exe_path?: string): EmbedRe
     local add_ok, add_err = appender:add(file_info.stored_name, file_info.content)
     if not add_ok then
       appender:close()
-      return {ok = false, message = "error: failed to add '" .. file_info.path .. "' to zip: " .. (add_err or "unknown error"), file_count = 0}
+      return {ok = false, message = "error: failed to add '" .. file_info.path .. "' to zip: " .. tostring(add_err or "unknown error"), file_count = 0}
     end
   end
 
