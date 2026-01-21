@@ -63,7 +63,7 @@ end
 local record zip
   --- Opens a ZIP archive for reading, writing, or appending.
   --- The first argument can be a file path string or a file descriptor integer.
-  open: function(path: string, mode?: string, options?: OpenOptions): Reader, string
+  open: function(path: string | number, mode?: string, options?: OpenOptions): Reader | Writer | Appender, string
   --- Opens a ZIP archive from in-memory data for reading.
   from: function(data: string, options?: OpenOptions): Reader, string
 end

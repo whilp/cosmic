@@ -1,5 +1,17 @@
 -- type declarations for cosmo.unix
 
+--- Shared memory for inter-process communication.
+--- Provides atomic operations and wait/wake primitives for synchronization.
+--- unix.Memory encapsulates memory that's shared across fork() and
+--- this module provides the fundamental synchronization primitives.
+--- Redbean memory maps may be used in two ways:
+--- 1. as an array of bytes a.k.a. a string
+--- 2. as an array of words a.k.a. integers
+--- They're aliased, union, or overlapped views of the same memory.
+--- For example if you write a string to your memory region, you'll
+--- be able to read it back as an integer.
+--- Reads, writes, and word operations will throw an exception if a
+--- memory boundary error or overflow occurs.
 local record Memory
   --- The starting byte index from which memory is copied, which defaults to zero.
   --- If `bytes` is none or nil, then the nul-terminated string at
@@ -102,6 +114,8 @@ local record Memory
   wake: function(self: Memory, index: number, count?: number): number
 end
 
+--- Directory handle for reading directory entries.
+--- `unix.Dir` objects are created by `opendir()` or `fdopendir()`.
 local record Dir
   --- Closes directory stream object and associated its file descriptor.
   --- This is called automatically by the garbage collector.
@@ -129,6 +143,9 @@ local record Dir
   rewind: function(self: Dir)
 end
 
+--- Process resource usage statistics.
+--- Contains CPU time, memory usage, I/O, and context switch counters.
+--- `unix.Rusage` objects are created by `wait()` or `getrusage()`.
 local record Rusage
   --- It's always the case that `0 ≤ nanos < 1e9`.
   --- On Windows NT this is collected from GetProcessTimes().
@@ -204,6 +221,10 @@ local record Rusage
   nivcsw: function(self: Rusage)
 end
 
+--- File metadata and attributes.
+--- Contains file size, permissions, ownership, and timestamps.
+--- `unix.Stat` objects are created by `stat()` or `fstat()`.
+--- Use `unix.S_ISDIR()`, `unix.S_ISREG()`, etc. to check file type from mode.
 local record Stat
   size: function(self: Stat): number
   --- Contains file type and permissions.
@@ -279,6 +300,12 @@ local record Sigset
   __tostring: function(self: Sigset): string
 end
 
+--- Error information from system calls.
+--- Provides detailed error codes and human-readable descriptions.
+--- This object is returned by system calls that fail. We prefer returning
+--- an object because for many system calls, an error is part of their normal
+--- operation. For example, it's often desirable to use the `errno()` method
+--- when performing a `read()` to check for EINTR.
 local record Errno
   --- The error number is always different for different platforms. On
   --- UNIX systems, error numbers occupy the range [1,127] in practice.
@@ -672,7 +699,7 @@ local record unix
   --- This function returns empty string on end of file. The exception is
   --- if `bufsiz` is zero, in which case an empty returned string means
   --- the file descriptor works.
-  read: function(fd: number, bufsiz?: string, offset?: number): string
+  read: function(fd: number, bufsiz?: number, offset?: number): string
   --- Writes to file descriptor.
   write: function(fd: number, data: string, offset?: number): number
   --- Invokes `_Exit(exitcode)` on the process. This will immediately
@@ -777,7 +804,7 @@ local record unix
   --- Hence it should come as no surprise that `fork()` would go slower on
   --- operating systems that have more security features. So depending on
   --- your use case, you can choose the operating system that suits you.
-  fork: function(): number
+  fork: function(): number | number
   --- Performs `$PATH` lookup of executable.
   --- unix = require 'unix'
   --- prog = assert(unix.commandv('ls'))
@@ -1638,7 +1665,7 @@ local record unix
   --- earlier on the listening socket. This is Linux-only. You can use the
   --- `OnServerListen` hook to enable SYN saving in your Redbean. When the
   --- `TCP_SAVE_SYN` option isn't used, this may return empty string.
-  setsockopt: function(fd: number, level: number, optname: number, value: boolean): boolean
+  setsockopt: function(fd: number, level: number, optname: number, value: boolean | number): boolean
   --- Checks for events on a set of file descriptors.
   --- The table of file descriptors to poll uses sparse integer keys. Any
   --- pairs with non-integer keys will be ignored. Pairs with negative
@@ -1778,7 +1805,7 @@ local record unix
   --- assert(gotsigusr1)
   --- assert(unix.sigprocmask(unix.SIG_SETMASK, oldmask))
   --- It's a good idea to not do too much work in a signal handler.
-  sigaction: function(sig: number, handler?: function, flags?: number, mask?: Sigset): function
+  sigaction: function(sig: number, handler?: function | number, flags?: number, mask?: Sigset): function | number
   --- Waits for signal to be delivered.
   --- The signal mask is temporarily replaced with `mask` during this system call.
   sigsuspend: function(mask?: Sigset): nil
@@ -2060,7 +2087,21 @@ local record unix
   localtime: function(unixts: number): number, number, number, number, number, number, number, number, number, number, string
   --- Gets information about file or directory.
   --- - `AT_SYMLINK_NOFOLLOW`: do not follow symbolic links.
-  stat: function(flags?: number, dirfd?: number): Stat
+  stat: function(path: string, flags?: number, dirfd?: number): Stat
+  --- Tests if file mode represents a directory.
+  S_ISDIR: function(mode: number): boolean
+  --- Tests if file mode represents a regular file.
+  S_ISREG: function(mode: number): boolean
+  --- Tests if file mode represents a symbolic link.
+  S_ISLNK: function(mode: number): boolean
+  --- Tests if file mode represents a block device.
+  S_ISBLK: function(mode: number): boolean
+  --- Tests if file mode represents a character device.
+  S_ISCHR: function(mode: number): boolean
+  --- Tests if file mode represents a FIFO/pipe.
+  S_ISFIFO: function(mode: number): boolean
+  --- Tests if file mode represents a socket.
+  S_ISSOCK: function(mode: number): boolean
   --- Gets information about opened file descriptor.
   --- `flags` may have any of:
   --- - `AT_SYMLINK_NOFOLLOW`: do not follow symbolic links.
@@ -2161,6 +2202,8 @@ local record unix
   --- This system call does not fail. An exception is instead thrown
   --- if sufficient memory isn't available.
   mapshared: function(size: number): Memory
+  --- Signal set for blocking, unblocking, and waiting on signals.
+  --- Used with `unix.sigprocmask()`, `unix.sigaction()`, and `unix.sigsuspend()`.
   --- The unix.Sigset class defines a mutable bitset that may currently
   --- contain 128 entries. See `unix.NSIG` to find out how many signals
   --- your operating system actually supports.

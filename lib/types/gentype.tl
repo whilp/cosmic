@@ -161,16 +161,23 @@ local function convert_type(t: string): string
     end
   end
 
-  -- Handle union types: T|U -> T | U (keep as is for now, Teal doesn't support well)
+  -- Handle union types: T|U -> T | U
+  -- Teal supports union types with | syntax
   if t:match("|") then
-    -- For unions, just take the first non-nil type
+    local parts: {string} = {}
     for part in t:gmatch("[^|]+") do
       part = part:match("^%s*(.-)%s*$")
-      if part ~= "nil" then
-        return convert_type(part)
+      if part ~= "nil" and part ~= "" then
+        table.insert(parts, convert_type(part))
       end
     end
-    return "any"
+    if #parts == 0 then
+      return "any"
+    elseif #parts == 1 then
+      return parts[1]
+    else
+      return table.concat(parts, " | ")
+    end
   end
 
   -- Handle module-prefixed types: lsqlite3.Database -> Database
