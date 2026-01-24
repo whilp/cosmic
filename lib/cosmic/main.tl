@@ -414,9 +414,23 @@ local function main(): integer, string
   -- Execute script file
   if opts.script then
     _G.arg = opts.script_args as {string}
-    local chunk, err = loadfile(opts.script)
+    local chunk: function(...: any): any...
+    local err: string
+
+    -- Compile .tl files through Teal, load .lua files directly
+    if opts.script:match("%.tl$") then
+      local teal = require("cosmic.teal")
+      local result = teal.compile(opts.script)
+      if not result.ok then
+        return 1, teal.format_issues(result.errors)
+      end
+      chunk, err = load(result.code, "@" .. opts.script)
+    else
+      chunk, err = loadfile(opts.script)
+    end
+
     if not chunk then
-      return 1, "cosmic-lua: " .. err
+      return 1, "cosmic-lua: " .. (err or "error loading script")
     end
     -- Call chunk with script args as varargs (matching standard lua behavior)
     -- Standard lua passes arg[1], arg[2], ... as varargs to the script

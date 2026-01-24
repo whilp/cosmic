@@ -54,4 +54,9 @@ local M: DocIndexModule = {
   main = main,
 }
 
+-- When run as a script, execute main
+if arg and arg[0] and arg[0]:match("docindex%.tl$") then
+  os.exit(main(arg))
+end
+
 return M
