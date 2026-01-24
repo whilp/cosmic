@@ -395,7 +395,15 @@ local function main(): integer, string
       if not result.ok then
         return 1, teal.format_issues(result.errors)
       end
-      chunk, err = load(result.code, "@" .. opts.script)
+      -- Strip shebang from compiled code before loading (Lua parser doesn't handle shebangs)
+      local code = result.code
+      if code:sub(1, 2) == "#!" then
+        local newline_pos = code:find("\n")
+        if newline_pos then
+          code = code:sub(newline_pos + 1)
+        end
+      end
+      chunk, err = load(code, "@" .. opts.script)
     else
       chunk, err = loadfile(opts.script)
     end
