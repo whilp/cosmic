@@ -241,10 +241,11 @@ $(o)/docs/cosmo/%.md: lib/types/cosmo/%.d.tl $(cosmic_bin) | $(bootstrap_files)
 doc_index_srcs := $(all_example_srcs) $(dtl_files)
 doc_index := $(o)/docs/.index.lua
 doc_index_script := lib/cosmic/doc-index.lua
+doc_index_impl := lib/cosmic/docindex.tl
 
-$(doc_index): $(doc_index_srcs) $(doc_index_script) | $(bootstrap_cosmic)
+$(doc_index): $(doc_index_srcs) $(doc_index_script) $(doc_index_impl) | $(bootstrap_cosmic)
 	@mkdir -p $(@D)
-	@$(bootstrap_cosmic) $(doc_index_script) $(doc_index_srcs) > $@
+	@LUA_PATH="lib/?.lua;lib/?/init.lua;lib/?.tl;lib/?/init.tl;;" $(bootstrap_cosmic) $(doc_index_script) $(doc_index_srcs) > $@
 
 .PHONY: doc-index
 ## Generate serialized documentation index
