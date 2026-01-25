@@ -26,7 +26,7 @@ local record Opts
   output: string           -- Output file for --embed (defaults to "cosmic")
   example: string          -- Input file for --example (run examples)
   benchmark: string        -- Input file for --benchmark (run benchmarks)
-  docs: boolean | string   -- Module/symbol/query for --docs
+  docs: string             -- Module/symbol/query for --docs
   error: string            -- Parse error message
 end
 
@@ -60,7 +60,7 @@ local function parse_args(): Opts
     { "output", "required", nil },
     { "example", "required", nil },
     { "benchmark", "required", nil },
-    { "docs", "optional", nil },
+    { "docs", "required", nil },
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -183,11 +183,7 @@ local function parse_args(): Opts
       opts.benchmark = optarg
       return opts
     elseif opt == "docs" then
-      if optarg then
-        opts.docs = optarg
-      else
-        opts.docs = true
-      end
+      opts.docs = optarg
       return opts
     end
   end
@@ -240,6 +236,115 @@ local function load_script_file(script_path: string): function(...: any): any...
   end
 end
 
+--- Result from running docs command.
+local record DocsRunResult
+  ok: boolean
+  output: string
+end
+
+--- Run docs command with smart matching.
+--- Tries exact match first, then searches if no exact match found.
+--- @param query string The query string (module, symbol, or search term)
+--- @return DocsRunResult Result with ok status and output text
+local function run_docs(query: string): DocsRunResult
+  local docs = require("cosmic.docs")
+
+  -- Try exact match first
+  local result = docs.run(query)
+  if result.ok then
+    return {
+      ok = true,
+      output = result.output,
+    }
+  end
+
+  -- If no exact match, try search
+  local results = docs.search(query)
+  if #results > 0 then
+    return {
+      ok = true,
+      output = docs.render_search_results(results, query),
+    }
+  end
+
+  -- No results at all
+  return {
+    ok = false,
+    output = result.output,
+  }
+end
+
+--- Generate help text for cosmic CLI.
+--- @return string The complete help text
+local function generate_help(): string
+  local lines: {string} = {}
+
+  table.insert(lines, "cosmic-lua: cosmopolitan lua with bundled libraries")
+  table.insert(lines, "")
+  table.insert(lines, "Usage: cosmic-lua [options] [script [args]]")
+  table.insert(lines, "")
+  table.insert(lines, "Cosmic options:")
+  table.insert(lines, "  --compile <file.tl>         compile Teal file to Lua, lax mode (stdout)")
+  table.insert(lines, "  --check <file.tl>           type-check a Teal file, strict mode")
+  table.insert(lines, "  --embed <file>              embed file(s) into cosmic (use multiple times)")
+  table.insert(lines, "  --output <file>             output file for --embed (default: cosmic)")
+  table.insert(lines, "  --example <file.tl>         run Example_* functions, check output")
+  table.insert(lines, "  --benchmark <file.tl[:pat]> run Benchmark_* functions, report timing")
+  table.insert(lines, "  --docs <query>              show docs; exact match or search")
+  table.insert(lines, "  --help                      show this help message")
+  table.insert(lines, "")
+  table.insert(lines, "Standard lua options:")
+  table.insert(lines, "  -e <stat>                   execute string 'stat'")
+  table.insert(lines, "  -l <name>                   require library 'name'")
+  table.insert(lines, "  -i                          enter interactive mode")
+  table.insert(lines, "  -v                          show version information")
+  table.insert(lines, "  -E                          ignore environment variables")
+  table.insert(lines, "  -W                          turn warnings into errors")
+  table.insert(lines, "")
+
+  -- Try to show module table
+  local docs = require("cosmic.docs")
+  if docs.has_docs() then
+    local topics = docs.list_topics()
+    if #topics > 0 then
+      -- Separate cosmic and cosmo modules
+      local cosmic_modules: {string} = {}
+      local cosmo_modules: {string} = {}
+
+      for _, topic in ipairs(topics) do
+        local name: string = topic[1] as string
+        if name:match("^cosmic%.") then
+          local short_name = name:gsub("^cosmic%.", "")
+          table.insert(cosmic_modules, short_name)
+        elseif name:match("^cosmo%.") then
+          local short_name = name:gsub("^cosmo%.", "")
+          table.insert(cosmo_modules, short_name)
+        end
+      end
+
+      if #cosmic_modules > 0 or #cosmo_modules > 0 then
+        table.insert(lines, "Available modules:")
+
+        if #cosmic_modules > 0 then
+          table.sort(cosmic_modules)
+          table.insert(lines, "  cosmic:  " .. table.concat(cosmic_modules, ", "))
+        end
+
+        if #cosmo_modules > 0 then
+          table.sort(cosmo_modules)
+          table.insert(lines, "  cosmo:   " .. table.concat(cosmo_modules, ", "))
+        end
+
+        table.insert(lines, "")
+      end
+    end
+  end
+
+  table.insert(lines, "For module documentation, use: cosmic-lua --docs <module>")
+
+  return table.concat(lines, "\n")
+end
+
 local function main(): integer, string
   local opts = parse_args()
 
@@ -256,68 +361,7 @@ local function main(): integer, string
 
   -- Handle --help
   if opts.help then
-    io.write("cosmic-lua: cosmopolitan lua with bundled libraries\n")
-    io.write("\n")
-    io.write("Usage: cosmic-lua [options] [script [args]]\n")
-    io.write("\n")
-    io.write("Cosmic options:\n")
-    io.write("  --compile <file.tl>         compile Teal file to Lua, lax mode (stdout)\n")
-    io.write("  --check <file.tl>           type-check a Teal file, strict mode\n")
-    io.write("  --embed <file>              embed file(s) into cosmic (use multiple times)\n")
-    io.write("  --output <file>             output file for --embed (default: cosmic)\n")
-    io.write("  --example <file.tl>         run Example_* functions, check output\n")
-    io.write("  --benchmark <file.tl[:pat]> run Benchmark_* functions, report timing\n")
-    io.write("  --docs[=query]              list modules, or show docs (use = for query)\n")
-    io.write("  --help                      show this help message\n")
-    io.write("\n")
-    io.write("Standard lua options:\n")
-    io.write("  -e <stat>                   execute string 'stat'\n")
-    io.write("  -l <name>                   require library 'name'\n")
-    io.write("  -i                          enter interactive mode\n")
-    io.write("  -v                          show version information\n")
-    io.write("  -E                          ignore environment variables\n")
-    io.write("  -W                          turn warnings into errors\n")
-    io.write("\n")
-
-    -- Try to show module table
-    local docs = require("cosmic.docs")
-    if docs.has_docs() then
-      local topics = docs.list_topics()
-      if #topics > 0 then
-        -- Separate cosmic and cosmo modules
-        local cosmic_modules: {string} = {}
-        local cosmo_modules: {string} = {}
-
-        for _, topic in ipairs(topics) do
-          local name: string = topic[1] as string
-          if name:match("^cosmic%.") then
-            local short_name = name:gsub("^cosmic%.", "")
-            table.insert(cosmic_modules, short_name)
-          elseif name:match("^cosmo%.") then
-            local short_name = name:gsub("^cosmo%.", "")
-            table.insert(cosmo_modules, short_name)
-          end
-        end
-
-        if #cosmic_modules > 0 or #cosmo_modules > 0 then
-          io.write("Available modules:\n")
-
-          if #cosmic_modules > 0 then
-            table.sort(cosmic_modules)
-            io.write("  cosmic:  " .. table.concat(cosmic_modules, ", ") .. "\n")
-          end
-
-          if #cosmo_modules > 0 then
-            table.sort(cosmo_modules)
-            io.write("  cosmo:   " .. table.concat(cosmo_modules, ", ") .. "\n")
-          end
-
-          io.write("\n")
-        end
-      end
-    end
-
-    io.write("For module documentation, use: cosmic-lua --docs <module>\n")
+    io.write(generate_help() .. "\n")
     return 0
   end
 
@@ -391,29 +435,14 @@ local function main(): integer, string
 
   -- Handle --docs
   if opts.docs then
-    local docs = require("cosmic.docs")
-    local query = type(opts.docs) == "string" and opts.docs as string or nil
-
-    -- Try exact match first
-    local result = docs.run(query)
+    local result = run_docs(opts.docs)
     if result.ok then
       io.write(result.output .. "\n")
       return 0
+    else
+      io.stderr:write(result.output .. "\n")
+      return 1
     end
-
-    -- If no exact match and we have a query, try search
-    if query then
-      local results = docs.search(query)
-      if #results > 0 then
-        local output = docs.render_search_results(results, query)
-        io.write(output .. "\n")
-        return 0
-      end
-    end
-
-    -- No results at all
-    io.stderr:write(result.output .. "\n")
-    return 1
   end
 
   -- Handle -W warnings: convert warnings to errors
