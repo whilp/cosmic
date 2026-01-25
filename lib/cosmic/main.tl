@@ -216,6 +216,30 @@ local function run_repl()
   debug.debug()
 end
 
+-- Load a script file (.tl or .lua)
+-- Compiles .tl files through Teal, loads .lua files directly
+local function load_script_file(script_path: string): function(...: any): any..., string
+  -- Compile .tl files through Teal, load .lua files directly
+  if script_path:match("%.tl$") then
+    local teal = require("cosmic.teal")
+    local result = teal.compile(script_path)
+    if not result.ok then
+      return nil, teal.format_issues(result.errors)
+    end
+    -- Strip shebang from compiled code before loading (Lua parser doesn't handle shebangs)
+    local code = result.code
+    if code:sub(1, 2) == "#!" then
+      local newline_pos = code:find("\n")
+      if newline_pos then
+        code = code:sub(newline_pos + 1)
+      end
+    end
+    return load(code, "@" .. script_path)
+  else
+    return loadfile(script_path)
+  end
+end
+
 local function main(): integer, string
   local opts = parse_args()
 
@@ -385,9 +409,9 @@ local function main(): integer, string
   -- Execute script file
   if opts.script then
     _G.arg = opts.script_args as {string}
-    local chunk, err = loadfile(opts.script)
+    local chunk, err = load_script_file(opts.script)
     if not chunk then
-      return 1, "cosmic-lua: " .. err
+      return 1, "cosmic-lua: " .. (err or "error loading script")
     end
     -- Call chunk with script args as varargs (matching standard lua behavior)
     -- Standard lua passes arg[1], arg[2], ... as varargs to the script
