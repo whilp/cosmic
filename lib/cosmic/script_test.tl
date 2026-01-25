@@ -5,13 +5,13 @@ local path = require("cosmo.path")
 local spawn = require("cosmic.spawn")
 local cosmo = require("cosmo")
 
+local unix = require("cosmo.unix")
+
 local cosmic = path.join(os.getenv("TEST_BIN"), "cosmic")
 local tmpdir = os.getenv("TEST_TMPDIR")
 
 -- Create a unique subdirectory for this test run to avoid conflicts
-local test_subdir = path.join(tmpdir, "cosmic_script_test_" .. tostring(os.time()) .. "_" .. tostring(math.random(10000, 99999)))
-local unix = require("cosmo.unix")
-unix.mkdir(test_subdir, 493) -- 0755 in octal
+local test_subdir = unix.mkdtemp(path.join(tmpdir, "cosmic_script_test_XXXXXX"))
 
 local function write_temp(name: string, content: string): string
   local filepath = path.join(test_subdir, name)
