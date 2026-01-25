@@ -268,11 +268,64 @@ local function Example_spawn_exit_code()
 end
 
 local record SpawnModule
+  _VERSION: string
+  _DESCRIPTION: string
+  _USAGE: string
   spawn: function(argv: {string}, opts?: SpawnOpts): SpawnHandle, string
   metamethod __call: function(self: SpawnModule, argv: {string}, opts?: SpawnOpts): SpawnHandle, string
 end
 
 local M: SpawnModule = {
+  _VERSION = "1.0.0",
+  _DESCRIPTION = "Process spawning utilities with control over stdin, stdout, and stderr",
+  _USAGE = [[
+Usage:
+  local spawn = require("cosmic.spawn")
+
+  -- Spawn and read output
+  local handle = spawn.spawn({"ls", "-la"})
+  local ok, output, exit_code = handle:read()
+  if ok then
+    print(output)
+  end
+
+  -- Pass stdin to process
+  local handle = spawn.spawn({"cat"}, {stdin = "hello world"})
+  local ok, output = handle:read()
+  print(output)  -- "hello world"
+
+  -- Change working directory
+  local handle = spawn.spawn({"pwd"}, {cwd = "/tmp"})
+  local ok, output = handle:read()
+  print(output)  -- "/tmp"
+
+Functions:
+  spawn(argv, opts?) -> SpawnHandle, error
+    Spawn a process with the given arguments.
+
+    Parameters:
+      argv (table)     - Array of command and arguments, e.g., {"ls", "-la"}
+      opts.stdin       - String to write to stdin, or file descriptor number
+      opts.stdout      - File descriptor to use for stdout
+      opts.stderr      - File descriptor to use for stderr
+      opts.env         - Environment variables as array of "KEY=VALUE" strings
+      opts.cwd         - Working directory for the process
+
+    Returns:
+      SpawnHandle {
+        pid (number)              - Process ID
+        stdin (Pipe)              - Pipe for writing to process stdin
+        stdout (Pipe)             - Pipe for reading from process stdout
+        stderr (Pipe)             - Pipe for reading from process stderr
+        wait() -> code, err       - Wait for process to exit
+        read(size?) -> ok, out, code - Read output and wait for exit
+      }
+
+Pipe methods:
+  pipe:write(data)  - Write data to pipe
+  pipe:read(size?)  - Read data from pipe (all data if size omitted)
+  pipe:close()      - Close pipe
+]],
   spawn = spawn,
 }
 

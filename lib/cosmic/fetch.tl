@@ -66,12 +66,60 @@ local function Fetch(url: string, opts?: Opts): Result
 end
 
 local record fetch
+  _VERSION: string
+  _DESCRIPTION: string
+  _USAGE: string
   Fetch: function(url: string, opts?: Opts): Result
   Opts: Opts
   Result: Result
 end
 
 local M: fetch = {
+  _VERSION = "1.0.0",
+  _DESCRIPTION = "Structured HTTP fetch with optional retry logic",
+  _USAGE = [[
+Usage:
+  local fetch = require("cosmic.fetch")
+
+  -- Simple GET request
+  local result = fetch.Fetch("https://api.example.com/data")
+  if result.ok then
+    print("Status:", result.status)
+    print("Body:", result.body)
+  else
+    print("Error:", result.error)
+  end
+
+  -- With retry logic
+  local result = fetch.Fetch("https://api.example.com/data", {
+    max_attempts = 3,
+    max_delay = 30,
+    should_retry = function(r)
+      return r.status >= 500  -- Retry on server errors
+    end
+  })
+
+Functions:
+  Fetch(url, opts?) -> Result
+    Fetch a URL and return structured result with retry support.
+
+    Parameters:
+      url (string)         - HTTP/HTTPS URL to fetch
+      opts.max_attempts    - Maximum retry attempts (default: 1)
+      opts.max_delay       - Maximum delay between retries in seconds (default: 30)
+      opts.should_retry    - Function(Result) -> boolean to determine if should retry
+      opts.headers         - Table of HTTP headers to send
+      opts.maxresponse     - Maximum response size
+
+    Returns:
+      Result {
+        ok (boolean)       - True if request succeeded
+        status (number)    - HTTP status code (200, 404, etc.)
+        headers (table)    - Response headers
+        body (string)      - Response body
+        error (string)     - Error message if ok is false
+      }
+]],
   Fetch = Fetch,
 }
 

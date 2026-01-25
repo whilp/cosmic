@@ -27,6 +27,8 @@ local record Opts
   example: string          -- Input file for --example (run examples)
   benchmark: string        -- Input file for --benchmark (run benchmarks)
   doc: string              -- Input file for --doc (generate docs)
+  list_modules: boolean    -- List available modules
+  list_functions: string   -- List functions in a module
   error: string            -- Parse error message
 end
 
@@ -48,6 +50,8 @@ local function parse_args(): Opts
     example = nil,
     benchmark = nil,
     doc = nil,
+    list_modules = false,
+    list_functions = nil,
     error = nil,
   }
 
@@ -61,6 +65,8 @@ local function parse_args(): Opts
     { "example", "required", nil },
     { "benchmark", "required", nil },
     { "doc", "required", nil },
+    { "list-modules", "none", nil },
+    { "list-functions", "required", nil },
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -189,6 +195,12 @@ local function parse_args(): Opts
     elseif opt == "doc" then
       opts.doc = optarg
       return opts
+    elseif opt == "list-modules" then
+      opts.list_modules = true
+      return opts
+    elseif opt == "list-functions" then
+      opts.list_functions = optarg
+      return opts
     end
   end
 
@@ -290,6 +302,8 @@ local function main(): integer, string
       io.write("  --benchmark <file.tl[:pattern]>  run Benchmark_* functions, report timing\n")
       io.write("  --doc <file.tl>          generate markdown documentation\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
+      io.write("  --list-modules           list all available modules\n")
+      io.write("  --list-functions <mod>   list functions in a module\n")
       io.write("\n")
       io.write("Standard lua options:\n")
       io.write("  -e <stat>                execute string 'stat'\n")
@@ -298,8 +312,79 @@ local function main(): integer, string
       io.write("  -v                       show version information\n")
       io.write("  -E                       ignore environment variables\n")
       io.write("  -W                       turn warnings into errors\n")
+      io.write("\n")
+      io.write("Quick Start:\n")
+      io.write("  cosmic-lua --list-modules            # List available modules\n")
+      io.write("  cosmic-lua --help=cosmic.fetch       # Get help on a module\n")
+      io.write("  cosmic-lua --list-functions cosmo    # List cosmo functions\n")
+      io.write("  cosmic-lua -e 'print(\"hello\")'       # Execute Lua code\n")
+      io.write("\n")
+      io.write("Main Modules:\n")
+      io.write("  cosmo          - Core Cosmopolitan Libc bindings (HTTP, crypto, JSON)\n")
+      io.write("  unix           - POSIX system calls (files, processes, networking)\n")
+      io.write("  cosmic.fetch   - HTTP client with retry logic\n")
+      io.write("  cosmic.spawn   - Process spawning utilities\n")
+      io.write("  cosmic.walk    - Directory tree walking\n")
+      io.write("\n")
+      io.write("For module help: cosmic-lua --help=<module>\n")
       return 0
     end
+  end
+
+  -- Handle --list-modules
+  if opts.list_modules then
+    local modules = {
+      {name = "cosmo", desc = "Core Cosmopolitan Libc bindings (HTTP, crypto, compression, JSON)"},
+      {name = "unix", desc = "POSIX system calls (files, processes, networking, time)"},
+      {name = "cosmic", desc = "Cosmopolitan Lua utilities and main entry point"},
+      {name = "cosmic.fetch", desc = "Structured HTTP fetch with retry logic"},
+      {name = "cosmic.spawn", desc = "Process spawning with stdin/stdout/stderr control"},
+      {name = "cosmic.walk", desc = "Directory tree walking with visitor pattern"},
+      {name = "cosmic.doc", desc = "Extract documentation from Teal files, render as markdown"},
+      {name = "cosmic.embed", desc = "Embed files into cosmic executable"},
+      {name = "cosmic.example", desc = "Go-style executable example testing"},
+      {name = "cosmic.teal", desc = "Teal compilation and type-checking"},
+      {name = "cosmo.getopt", desc = "Command-line option parsing (getopt)"},
+      {name = "cosmo.path", desc = "File path manipulation utilities"},
+      {name = "cosmo.unix", desc = "Extended Unix utilities"},
+      {name = "cosmo.zip", desc = "ZIP archive reading and writing"},
+      {name = "cosmo.re", desc = "POSIX regular expression matching"},
+      {name = "cosmo.lsqlite3", desc = "SQLite3 database bindings"},
+    }
+
+    io.write("Available modules:\n\n")
+    for _, mod in ipairs(modules) do
+      io.write(string.format("  %-20s %s\n", mod.name, mod.desc))
+    end
+    io.write("\nUse --help <module> for detailed information\n")
+    io.write("Use --list-functions <module> to see available functions\n")
+    return 0
+  end
+
+  -- Handle --list-functions
+  if opts.list_functions then
+    local ok, mod = pcall(require, opts.list_functions as string)
+    if not ok or type(mod) ~= "table" then
+      return 1, "error: module '" .. (opts.list_functions as string) .. "' not found"
+    end
+
+    io.write("Functions in " .. (opts.list_functions as string) .. ":\n\n")
+    local items: {{string, string}} = {}
+    for k, v in pairs(mod as {string:any}) do
+      if not k:match("^_") then  -- Skip internal fields
+        items[#items + 1] = {k, type(v)}
+      end
+    end
+    table.sort(items, function(a: {string, string}, b: {string, string}): boolean
+      return a[1] < b[1]
+    end)
+
+    for _, item in ipairs(items) do
+      io.write(string.format("  %-30s (%s)\n", item[1], item[2]))
+    end
+
+    io.write("\nUse --help " .. (opts.list_functions as string) .. " for detailed usage\n")
+    return 0
   end
 
   -- Handle --compile

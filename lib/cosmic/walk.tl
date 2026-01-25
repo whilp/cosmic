@@ -111,12 +111,72 @@ local function collect_all(dir: string, base?: string, files?: {string:FileInfo}
 end
 
 local record WalkModule
+  _VERSION: string
+  _DESCRIPTION: string
+  _USAGE: string
   walk: function<T>(dir: string, visitor: Visitor, ctx?: T): T
   collect: function(dir: string, pattern: string): {string}
   collect_all: function(dir: string, base?: string, files?: {string:FileInfo}): {string:FileInfo}
 end
 
 local M: WalkModule = {
+  _VERSION = "1.0.0",
+  _DESCRIPTION = "Directory tree walking utilities with visitor pattern and glob matching",
+  _USAGE = [[
+Usage:
+  local walk = require("cosmic.walk")
+
+  -- Walk directory with visitor function
+  walk.walk(".", function(full_path, entry, stat, ctx)
+    print(full_path)
+    return true  -- Return false to skip recursing into subdirectories
+  end)
+
+  -- Collect files matching a pattern
+  local lua_files = walk.collect(".", "%.lua$")
+  for _, file in ipairs(lua_files) do
+    print(file)
+  end
+
+  -- Collect all files with metadata
+  local all_files = walk.collect_all(".")
+  for path, info in pairs(all_files) do
+    print(path, string.format("0%o", info.mode))
+  end
+
+Functions:
+  walk(dir, visitor, ctx?) -> ctx
+    Recursively walk directory tree calling visitor for each entry.
+
+    Parameters:
+      dir (string)        - Directory to walk
+      visitor (function)  - function(full_path, entry, stat, ctx) -> continue
+        full_path: Complete path to file/directory
+        entry: Basename of file/directory
+        stat: File metadata with mode(), size(), mtim() methods
+        ctx: User context passed through
+        Returns: false to skip recursing into subdirectory
+      ctx (any)           - Optional context passed to visitor
+
+    Returns: The context object (potentially modified)
+
+  collect(dir, pattern) -> {string}
+    Collect file paths matching Lua pattern.
+
+    Parameters:
+      dir (string)      - Directory to search
+      pattern (string)  - Lua pattern to match against basenames
+
+    Returns: Array of full paths to matching files
+
+  collect_all(dir, base?, files?) -> {string: FileInfo}
+    Recursively collect all files with Unix permissions.
+
+    Parameters:
+      dir (string)      - Directory to walk
+
+    Returns: Map of relative paths to {mode: number}
+]],
   walk = walk,
   collect = collect,
   collect_all = collect_all,
