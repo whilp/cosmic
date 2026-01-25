@@ -385,6 +385,138 @@ local function find_symbol(doc: ModuleDoc, symbol: string): string
   return nil
 end
 
+--- Search result entry.
+local record SearchResult
+  module_name: string
+  symbol_name: string
+  symbol_type: string  -- "function", "record", "example", "module"
+  description: string
+  match_score: integer
+end
+
+--- Search documentation for a query string.
+--- @param query string The search query
+--- @return {SearchResult} List of search results, sorted by relevance
+local function search(query: string): {SearchResult}
+  local index, _ = load_index()
+  if not index then
+    return {}
+  end
+
+  local results: {SearchResult} = {}
+  local query_lower = query:lower()
+
+  -- Search through all modules
+  for mod_name, mod_doc in pairs(index.modules) do
+    local simple_name = mod_name:match("([^%.]+)$") or mod_name
+
+    -- Check module name and description
+    if simple_name:lower():find(query_lower, 1, true) or
+       (mod_doc.module_doc and mod_doc.module_doc:lower():find(query_lower, 1, true)) then
+      local score = simple_name:lower() == query_lower and 100 or 50
+      table.insert(results, {
+        module_name = mod_name,
+        symbol_name = nil,
+        symbol_type = "module",
+        description = first_paragraph(mod_doc.module_doc),
+        match_score = score,
+      })
+    end
+
+    -- Search functions
+    if mod_doc.functions then
+      for _, func in ipairs(mod_doc.functions) do
+        if func.name:lower():find(query_lower, 1, true) or
+           (func.description and func.description:lower():find(query_lower, 1, true)) then
+          local score = func.name:lower() == query_lower and 90 or 40
+          table.insert(results, {
+            module_name = mod_name,
+            symbol_name = func.name,
+            symbol_type = "function",
+            description = first_paragraph(func.description or ""),
+            match_score = score,
+          })
+        end
+      end
+    end
+
+    -- Search records
+    if mod_doc.records then
+      for _, rec in ipairs(mod_doc.records) do
+        if rec.name:lower():find(query_lower, 1, true) or
+           (rec.description and rec.description:lower():find(query_lower, 1, true)) then
+          local score = rec.name:lower() == query_lower and 90 or 40
+          table.insert(results, {
+            module_name = mod_name,
+            symbol_name = rec.name,
+            symbol_type = "record",
+            description = first_paragraph(rec.description or ""),
+            match_score = score,
+          })
+        end
+      end
+    end
+
+    -- Search examples
+    if mod_doc.examples then
+      for _, example in ipairs(mod_doc.examples) do
+        local example_name = example.name:gsub("^Example_?", "")
+        if example_name:lower():find(query_lower, 1, true) or
+           (example.description and example.description:lower():find(query_lower, 1, true)) then
+          table.insert(results, {
+            module_name = mod_name,
+            symbol_name = example_name,
+            symbol_type = "example",
+            description = first_paragraph(example.description or ""),
+            match_score = 30,
+          })
+        end
+      end
+    end
+  end
+
+  -- Sort by match score (highest first)
+  table.sort(results, function(a: SearchResult, b: SearchResult): boolean
+    return a.match_score > b.match_score
+  end)
+
+  return results
+end
+
+--- Render search results as CLI output.
+--- @param results {SearchResult} List of search results
+--- @param query string The original search query
+--- @return string Formatted output
+local function render_search_results(results: {SearchResult}, query: string): string
+  if #results == 0 then
+    return "No results found for '" .. query .. "'"
+  end
+
+  local lines: {string} = {}
+  table.insert(lines, "Search results for '" .. query .. "':")
+  table.insert(lines, "")
+
+  for _, result in ipairs(results) do
+    local symbol_ref = result.module_name
+    if result.symbol_name then
+      symbol_ref = symbol_ref .. "." .. result.symbol_name
+    end
+
+    local type_label = result.symbol_type
+    local line = "  " .. symbol_ref .. " (" .. type_label .. ")"
+    table.insert(lines, line)
+
+    if result.description and result.description ~= "" then
+      table.insert(lines, "    " .. result.description)
+    end
+    table.insert(lines, "")
+  end
+
+  table.insert(lines, "Use 'cosmic --docs <symbol>' for more information.")
+
+  return table.concat(lines, "\n")
+end
+
 --- Main entry point for the docs command.
 --- @param query string Optional query string (module or module.symbol)
 --- @return DocsResult Result with documentation content
@@ -457,7 +589,7 @@ local function run(query?: string): DocsResult
   return {
     ok = false,
     output = "error: documentation not found for '" .. query .. "'\n" ..
-             "Use 'cosmic --docs list' to see available modules.",
+             "Use 'cosmic --docs' to see available modules.",
   }
 end
 
@@ -467,6 +599,8 @@ local record DocsModule
   list_topics: function(): {{string, string}}
   load_index: function(): DocIndex, string
   render_module: function(name: string, doc: ModuleDoc): string
+  search: function(query: string): {SearchResult}
+  render_search_results: function(results: {SearchResult}, query: string): string
 end
 
 local M: DocsModule = {
@@ -475,6 +609,8 @@ local M: DocsModule = {
   list_topics = list_topics,
   load_index = load_index,
   render_module = render_module,
+  search = search,
+  render_search_results = render_search_results,
 }
 
 return M

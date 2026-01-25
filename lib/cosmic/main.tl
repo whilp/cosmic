@@ -17,7 +17,7 @@ local record Opts
   interactive: boolean
   version: boolean
   warnings: boolean
-  help: boolean | string
+  help: boolean
   script: string
   script_args: {integer:string}
   compile: string          -- Input file for --compile (outputs to stdout)
@@ -26,7 +26,7 @@ local record Opts
   output: string           -- Output file for --embed (defaults to "cosmic")
   example: string          -- Input file for --example (run examples)
   benchmark: string        -- Input file for --benchmark (run benchmarks)
-  doc: string              -- Input file for --doc (generate docs)
+  docs: string             -- Module/symbol/query for --docs
   error: string            -- Parse error message
 end
 
@@ -38,7 +38,7 @@ local function parse_args(): Opts
     interactive = false,
     version = false,
     warnings = false,
-    help = nil,
+    help = false,
     script = nil,
     script_args = {},
     compile = nil,
@@ -47,20 +47,20 @@ local function parse_args(): Opts
     output = nil,
     example = nil,
     benchmark = nil,
-    doc = nil,
+    docs = nil,
     error = nil,
   }
 
-  local shortopts = "e:l:ivEWh::"
+  local shortopts = "e:l:ivEWh"
   local longopts: {LongOpt} = {
-    { "help", "optional", "h" },
+    { "help", "none", "h" },
     { "compile", "required", nil },
     { "check", "required", nil },  -- Takes first file, remaining files via remaining()
     { "embed", "required", nil },
     { "output", "required", nil },
     { "example", "required", nil },
     { "benchmark", "required", nil },
-    { "doc", "required", nil },
+    { "docs", "required", nil },
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -164,11 +164,7 @@ local function parse_args(): Opts
     elseif opt == "W" then
       opts.warnings = true
     elseif opt == "h" or opt == "help" then
-      if optarg then
-        opts.help = optarg
-      else
-        opts.help = true
-      end
+      opts.help = true
       return opts
     elseif opt == "compile" then
       opts.compile = optarg
@@ -186,8 +182,8 @@ local function parse_args(): Opts
     elseif opt == "benchmark" then
       opts.benchmark = optarg
       return opts
-    elseif opt == "doc" then
-      opts.doc = optarg
+    elseif opt == "docs" then
+      opts.docs = optarg
       return opts
     end
   end
@@ -240,6 +236,115 @@ local function load_script_file(script_path: string): function(...: any): any...
   end
 end
 
+--- Result from running docs command.
+local record DocsRunResult
+  ok: boolean
+  output: string
+end
+
+--- Run docs command with smart matching.
+--- Tries exact match first, then searches if no exact match found.
+--- @param query string The query string (module, symbol, or search term)
+--- @return DocsRunResult Result with ok status and output text
+local function run_docs(query: string): DocsRunResult
+  local docs = require("cosmic.docs")
+
+  -- Try exact match first
+  local result = docs.run(query)
+  if result.ok then
+    return {
+      ok = true,
+      output = result.output,
+    }
+  end
+
+  -- If no exact match, try search
+  local results = docs.search(query)
+  if #results > 0 then
+    return {
+      ok = true,
+      output = docs.render_search_results(results, query),
+    }
+  end
+
+  -- No results at all
+  return {
+    ok = false,
+    output = result.output,
+  }
+end
+
+--- Generate help text for cosmic CLI.
+--- @return string The complete help text
+local function generate_help(): string
+  local lines: {string} = {}
+
+  table.insert(lines, "cosmic-lua: cosmopolitan lua with bundled libraries")
+  table.insert(lines, "")
+  table.insert(lines, "Usage: cosmic-lua [options] [script [args]]")
+  table.insert(lines, "")
+  table.insert(lines, "Cosmic options:")
+  table.insert(lines, "  --compile <file.tl>         compile Teal file to Lua, lax mode (stdout)")
+  table.insert(lines, "  --check <file.tl>           type-check a Teal file, strict mode")
+  table.insert(lines, "  --embed <file>              embed file(s) into cosmic (use multiple times)")
+  table.insert(lines, "  --output <file>             output file for --embed (default: cosmic)")
+  table.insert(lines, "  --example <file.tl>         run Example_* functions, check output")
+  table.insert(lines, "  --benchmark <file.tl[:pat]> run Benchmark_* functions, report timing")
+  table.insert(lines, "  --docs <query>              show docs; exact match or search")
+  table.insert(lines, "  --help                      show this help message")
+  table.insert(lines, "")
+  table.insert(lines, "Standard lua options:")
+  table.insert(lines, "  -e <stat>                   execute string 'stat'")
+  table.insert(lines, "  -l <name>                   require library 'name'")
+  table.insert(lines, "  -i                          enter interactive mode")
+  table.insert(lines, "  -v                          show version information")
+  table.insert(lines, "  -E                          ignore environment variables")
+  table.insert(lines, "  -W                          turn warnings into errors")
+  table.insert(lines, "")
+
+  -- Try to show module table
+  local docs = require("cosmic.docs")
+  if docs.has_docs() then
+    local topics = docs.list_topics()
+    if #topics > 0 then
+      -- Separate cosmic and cosmo modules
+      local cosmic_modules: {string} = {}
+      local cosmo_modules: {string} = {}
+
+      for _, topic in ipairs(topics) do
+        local name: string = topic[1] as string
+        if name:match("^cosmic%.") then
+          local short_name = name:gsub("^cosmic%.", "")
+          table.insert(cosmic_modules, short_name)
+        elseif name:match("^cosmo%.") then
+          local short_name = name:gsub("^cosmo%.", "")
+          table.insert(cosmo_modules, short_name)
+        end
+      end
+
+      if #cosmic_modules > 0 or #cosmo_modules > 0 then
+        table.insert(lines, "Available modules:")
+
+        if #cosmic_modules > 0 then
+          table.sort(cosmic_modules)
+          table.insert(lines, "  cosmic:  " .. table.concat(cosmic_modules, ", "))
+        end
+
+        if #cosmo_modules > 0 then
+          table.sort(cosmo_modules)
+          table.insert(lines, "  cosmo:   " .. table.concat(cosmo_modules, ", "))
+        end
+
+        table.insert(lines, "")
+      end
+    end
+  end
+
+  table.insert(lines, "For module documentation, use: cosmic-lua --docs <module>")
+
+  return table.concat(lines, "\n")
+end
+
 local function main(): integer, string
   local opts = parse_args()
 
@@ -256,50 +361,8 @@ local function main(): integer, string
 
   -- Handle --help
   if opts.help then
-    if type(opts.help) == "string" then
-      -- Help for specific module
-      local ok, mod = pcall(require, opts.help as string)
-      if ok and type(mod) == "table" then
-        io.write("Module: " .. (opts.help as string) .. "\n")
-        local modtbl = mod as {string:string}
-        if modtbl._VERSION then
-          io.write("Version: " .. modtbl._VERSION .. "\n")
-        end
-        if modtbl._DESCRIPTION then
-          io.write("\n" .. modtbl._DESCRIPTION .. "\n")
-        end
-        if modtbl._USAGE then
-          io.write("\nUsage:\n" .. modtbl._USAGE .. "\n")
-        end
-        return 0
-      else
-        return 1, "error: module '" .. (opts.help as string) .. "' not found"
-      end
-    else
-      -- General cosmic help
-      io.write("cosmic-lua: cosmopolitan lua with bundled libraries\n")
-      io.write("\n")
-      io.write("Usage: cosmic-lua [options] [script [args]]\n")
-      io.write("\n")
-      io.write("Cosmic options:\n")
-      io.write("  --compile <file.tl>      compile Teal file to Lua, lax mode (stdout)\n")
-      io.write("  --check <file.tl>        type-check a Teal file, strict mode\n")
-      io.write("  --embed <file>           embed file(s) into cosmic (use multiple times)\n")
-      io.write("  --output <file>          output file for --embed (default: cosmic)\n")
-      io.write("  --example <file.tl>      run Example_* functions, check output\n")
-      io.write("  --benchmark <file.tl[:pattern]>  run Benchmark_* functions, report timing\n")
-      io.write("  --doc <file.tl>          generate markdown documentation\n")
-      io.write("  --help [module]          show help for cosmic or a module\n")
-      io.write("\n")
-      io.write("Standard lua options:\n")
-      io.write("  -e <stat>                execute string 'stat'\n")
-      io.write("  -l <name>                require library 'name'\n")
-      io.write("  -i                       enter interactive mode\n")
-      io.write("  -v                       show version information\n")
-      io.write("  -E                       ignore environment variables\n")
-      io.write("  -W                       turn warnings into errors\n")
-      return 0
-    end
+    io.write(generate_help() .. "\n")
+    return 0
   end
 
   -- Handle --compile
@@ -370,15 +433,14 @@ local function main(): integer, string
     return result.exit_code
   end
 
-  -- Handle --doc
-  if opts.doc then
-    local doc = require("cosmic.doc")
-    local ok, output = doc.render_file(opts.doc)
-    if ok then
-      io.write(output)
+  -- Handle --docs
+  if opts.docs then
+    local result = run_docs(opts.docs)
+    if result.ok then
+      io.write(result.output .. "\n")
       return 0
     else
-      io.stderr:write(output .. "\n")
+      io.stderr:write(result.output .. "\n")
       return 1
     end
   end

@@ -11,6 +11,8 @@ local function test_module_loads()
   assert(docs.list_topics, "docs.list_topics should exist")
   assert(docs.load_index, "docs.load_index should exist")
   assert(docs.render_module, "docs.render_module should exist")
+  assert(docs.search, "docs.search should exist")
+  assert(docs.render_search_results, "docs.render_search_results should exist")
   print("test_module_loads: PASS")
 end
 test_module_loads()
@@ -108,6 +110,41 @@ local function test_list_topics()
   print("test_list_topics: PASS (found " .. #topics .. " topics)")
 end
 test_list_topics()
+
+-- Test search functionality
+local function test_search()
+  local results = docs.search("doc")
+  assert(type(results) == "table", "search should return a table")
+  -- Each result should have the required fields
+  for _, result in ipairs(results) do
+    assert(type(result) == "table", "each result should be a table")
+    assert(type(result.module_name) == "string", "result.module_name should be a string")
+    assert(type(result.symbol_type) == "string", "result.symbol_type should be a string")
+    assert(type(result.match_score) == "number", "result.match_score should be a number")
+  end
+  print("test_search: PASS (found " .. #results .. " results)")
+end
+test_search()
+
+-- Test render_search_results
+local function test_render_search_results()
+  local results = docs.search("doc")
+  local output = docs.render_search_results(results, "doc")
+  assert(type(output) == "string", "render_search_results should return a string")
+  assert(output:match("Search results") or output:match("No results"),
+         "search results output should contain relevant content")
+  print("test_render_search_results: PASS")
+end
+test_render_search_results()
+
+-- Test empty search results
+local function test_search_no_results()
+  local output = docs.render_search_results({}, "nonexistentquerythatdoesnotmatchanything")
+  assert(type(output) == "string", "render_search_results should return a string")
+  assert(output:match("No results"), "empty search should mention no results")
+  print("test_search_no_results: PASS")
+end
+test_search_no_results()
 
 print("")
 print("All docs tests passed!")
