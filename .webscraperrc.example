@@ -1,0 +1,22 @@
+# Example configuration file for cosmic-lua web scraper
+# Copy this to .webscraperrc and customize as needed
+
+# Maximum number of retry attempts for failed HTTP requests
+# Default: 3
+# The scraper will retry on network errors, 5xx server errors, and 429 rate limiting
+max_retries=5
+
+# Maximum delay between retry attempts in seconds
+# Default: 30
+# Uses exponential backoff: waits 2^attempt seconds, capped at this value
+max_delay=60
+
+# Path to the SQLite database file
+# Default: scraper.db
+# Can be relative or absolute path
+database_path=./data/scraper.db
+
+# Custom User-Agent string sent with HTTP requests
+# Default: cosmic-webscraper/1.0
+# It's good practice to identify your bot and provide contact info
+user_agent=MyWebScraper/1.0 (+https://example.com/bot-info)
