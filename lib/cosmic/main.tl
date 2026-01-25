@@ -26,7 +26,8 @@ local record Opts
   output: string           -- Output file for --embed (defaults to "cosmic")
   example: string          -- Input file for --example (run examples)
   benchmark: string        -- Input file for --benchmark (run benchmarks)
-  doc: string              -- Input file for --doc (generate docs)
+  docs: boolean | string   -- Optional module/symbol for --docs
+  docs_search: string      -- Search query for --docs-search
   error: string            -- Parse error message
 end
 
@@ -47,7 +48,8 @@ local function parse_args(): Opts
     output = nil,
     example = nil,
     benchmark = nil,
-    doc = nil,
+    docs = nil,
+    docs_search = nil,
     error = nil,
   }
 
@@ -60,7 +62,8 @@ local function parse_args(): Opts
     { "output", "required", nil },
     { "example", "required", nil },
     { "benchmark", "required", nil },
-    { "doc", "required", nil },
+    { "docs", "optional", nil },
+    { "docs-search", "required", nil },
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -186,8 +189,15 @@ local function parse_args(): Opts
     elseif opt == "benchmark" then
       opts.benchmark = optarg
       return opts
-    elseif opt == "doc" then
-      opts.doc = optarg
+    elseif opt == "docs" then
+      if optarg then
+        opts.docs = optarg
+      else
+        opts.docs = true
+      end
+      return opts
+    elseif opt == "docs-search" then
+      opts.docs_search = optarg
       return opts
     end
   end
@@ -257,23 +267,31 @@ local function main(): integer, string
   -- Handle --help
   if opts.help then
     if type(opts.help) == "string" then
-      -- Help for specific module
-      local ok, mod = pcall(require, opts.help as string)
-      if ok and type(mod) == "table" then
-        io.write("Module: " .. (opts.help as string) .. "\n")
-        local modtbl = mod as {string:string}
-        if modtbl._VERSION then
-          io.write("Version: " .. modtbl._VERSION .. "\n")
-        end
-        if modtbl._DESCRIPTION then
-          io.write("\n" .. modtbl._DESCRIPTION .. "\n")
-        end
-        if modtbl._USAGE then
-          io.write("\nUsage:\n" .. modtbl._USAGE .. "\n")
-        end
+      -- Help for specific module - use embedded docs
+      local docs = require("cosmic.docs")
+      local result = docs.run(opts.help as string)
+      if result.ok then
+        io.write(result.output .. "\n")
         return 0
       else
-        return 1, "error: module '" .. (opts.help as string) .. "' not found"
+        -- Fallback to old module metadata approach if embedded docs not available
+        local ok, mod = pcall(require, opts.help as string)
+        if ok and type(mod) == "table" then
+          io.write("Module: " .. (opts.help as string) .. "\n")
+          local modtbl = mod as {string:string}
+          if modtbl._VERSION then
+            io.write("Version: " .. modtbl._VERSION .. "\n")
+          end
+          if modtbl._DESCRIPTION then
+            io.write("\n" .. modtbl._DESCRIPTION .. "\n")
+          end
+          if modtbl._USAGE then
+            io.write("\nUsage:\n" .. modtbl._USAGE .. "\n")
+          end
+          return 0
+        else
+          return 1, "error: module '" .. (opts.help as string) .. "' not found"
+        end
       end
     else
       -- General cosmic help
@@ -288,7 +306,8 @@ local function main(): integer, string
       io.write("  --output <file>          output file for --embed (default: cosmic)\n")
       io.write("  --example <file.tl>      run Example_* functions, check output\n")
       io.write("  --benchmark <file.tl[:pattern]>  run Benchmark_* functions, report timing\n")
-      io.write("  --doc <file.tl>          generate markdown documentation\n")
+      io.write("  --docs [symbol]          show embedded documentation\n")
+      io.write("  --docs-search <query>    search embedded documentation\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
       io.write("\n")
       io.write("Standard lua options:\n")
@@ -298,6 +317,8 @@ local function main(): integer, string
       io.write("  -v                       show version information\n")
       io.write("  -E                       ignore environment variables\n")
       io.write("  -W                       turn warnings into errors\n")
+      io.write("\n")
+      io.write("For more information, use 'cosmic-lua --docs' to browse available modules.\n")
       return 0
     end
   end
@@ -370,17 +391,27 @@ local function main(): integer, string
     return result.exit_code
   end
 
-  -- Handle --doc
-  if opts.doc then
-    local doc = require("cosmic.doc")
-    local ok, output = doc.render_file(opts.doc)
-    if ok then
-      io.write(output)
+  -- Handle --docs
+  if opts.docs then
+    local docs = require("cosmic.docs")
+    local query = type(opts.docs) == "string" and opts.docs as string or nil
+    local result = docs.run(query)
+    if result.ok then
+      io.write(result.output .. "\n")
       return 0
     else
-      io.stderr:write(output .. "\n")
+      io.stderr:write(result.output .. "\n")
       return 1
     end
+  end
+
+  -- Handle --docs-search
+  if opts.docs_search then
+    local docs = require("cosmic.docs")
+    local results = docs.search(opts.docs_search)
+    local output = docs.render_search_results(results, opts.docs_search)
+    io.write(output .. "\n")
+    return 0
   end
 
   -- Handle -W warnings: convert warnings to errors

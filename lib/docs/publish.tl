@@ -140,7 +140,7 @@ local function make_readme(docs_dir: string): string
 
   table.insert(lines, "---")
   table.insert(lines, "")
-  table.insert(lines, "Documentation is generated from Teal source files using `cosmic --doc`.")
+  table.insert(lines, "Documentation is generated from Teal source files using the `cosmic.doc` module.")
   table.insert(lines, "")
   table.insert(lines, "To regenerate locally:")
   table.insert(lines, "```bash")

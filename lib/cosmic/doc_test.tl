@@ -149,27 +149,8 @@ local function test_render_file_missing()
 end
 test_render_file_missing()
 
--- Test cosmic --doc command
-local function test_cosmic_doc_command()
-  local input = write_temp("cmd_test.tl", [[--- Command test module
-local record Widget
-  id: number
-end
-]])
-  local ok, out = spawn({cosmic, "--doc", input}):read()
-  assert(ok, "cosmic --doc should succeed")
-  assert((out as string):find("# cmd_test"), "output should have header")
-  assert((out as string):find("Command test module"), "output should have module doc")
-  assert((out as string):find("### Widget"), "output should have record")
-end
-test_cosmic_doc_command()
-
--- Test cosmic --doc with missing file
-local function test_cosmic_doc_missing_file()
-  local ok, out = spawn({cosmic, "--doc", "/nonexistent/file.tl"}):read()
-  assert(not ok, "cosmic --doc should fail on missing file")
-end
-test_cosmic_doc_missing_file()
+-- Note: --doc CLI flag has been removed. Use the doc.render_file() function directly
+-- or the gendoc.tl script for build-time documentation generation.
 
 -- Test function without doc comment
 local function test_function_no_doc()

@@ -252,11 +252,11 @@ docs: $(all_docs)
 
 $(o)/docs/%.md: %.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
-	@$(cosmic_bin) --doc $< > $@
+	@$(cosmic_bin) lib/cosmic/gendoc.tl $< > $@
 
 $(o)/docs/cosmo/%.md: lib/types/cosmo/%.d.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
-	@$(cosmic_bin) --doc $< > $@
+	@$(cosmic_bin) lib/cosmic/gendoc.tl $< > $@
 
 # Generate serialized doc index for embedding (uses bootstrap cosmic to avoid circular dep)
 doc_index_srcs := $(all_example_srcs) $(dtl_files)
