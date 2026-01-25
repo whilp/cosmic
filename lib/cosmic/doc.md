@@ -87,14 +87,28 @@ end
 
 ### RecordName
 
+### DocIndex
+
+ A documentation index containing all modules.
+
+```teal
+local record DocIndex
+  modules: {string:ModuleDoc}
+end
+```
+
 ### DocModule
 
 ```teal
 local record DocModule
   parse: function(source: string, file_path: string): ModuleDoc
   parse_dtl: function(source: string, file_path: string): ModuleDoc
+  parse_file: function(file_path: string): ModuleDoc, string
   render: function(doc: ModuleDoc): string
   render_file: function(file_path: string): boolean, string
+  serialize: function(doc: ModuleDoc): string
+  serialize_index: function(index: DocIndex): string
+  load_index: function(source: string): DocIndex, string
 end
 ```
 
@@ -153,6 +167,25 @@ function parse_dtl(source: string, file_path: string): ModuleDoc
 
 - ModuleDoc - Complete documentation for the module
 
+### parse_file
+
+```teal
+function parse_file(file_path: string): ModuleDoc, string
+```
+
+ Parse a file and return structured documentation.
+ Reads a Teal file and extracts documentation as a ModuleDoc structure.
+ Auto-detects .d.tl files and uses the appropriate parser.
+
+**Parameters:**
+
+- `file_path` (string) - Path to the Teal file to document
+
+**Returns:**
+
+- ModuleDoc - Parsed documentation structure, or nil on error
+- string - Error message if parsing failed
+
 ### render_file
 
 ```teal
@@ -171,3 +204,53 @@ function render_file(file_path: string): boolean, string
 
 - boolean - Success status
 - string - Markdown documentation on success, error message on failure
+
+### serialize
+
+```teal
+function serialize(doc: ModuleDoc): string
+```
+
+ Serialize a ModuleDoc to Lua source code.
+ Uses cosmo.EncodeLua to generate loadable Lua code.
+
+**Parameters:**
+
+- `doc` (ModuleDoc) - The documentation to serialize
+
+**Returns:**
+
+- string - Lua source code representing the ModuleDoc
+
+### serialize_index
+
+```teal
+function serialize_index(index: DocIndex): string
+```
+
+ Serialize a DocIndex to Lua source code.
+
+**Parameters:**
+
+- `index` (DocIndex) - The index to serialize
+
+**Returns:**
+
+- string - Lua source code representing the DocIndex
+
+### load_index
+
+```teal
+function load_index(source: string): DocIndex, string
+```
+
+ Load a DocIndex from Lua source code.
+
+**Parameters:**
+
+- `source` (string) - Lua source code from serialize_index
+
+**Returns:**
+
+- DocIndex - The loaded index, or nil on error
+- string - Error message if loading failed
