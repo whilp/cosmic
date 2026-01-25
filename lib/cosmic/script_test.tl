@@ -9,8 +9,17 @@ local cosmic = path.join(os.getenv("TEST_BIN"), "cosmic")
 local tmpdir = os.getenv("TEST_TMPDIR")
 
 local function write_temp(name: string, content: string): string
+  -- Ensure tmpdir exists
+  local unix = require("cosmo.unix")
+  unix.mkdir(tmpdir, 493) -- 0755 in octal
+
   local filepath = path.join(tmpdir, name)
   cosmo.Barf(filepath, content)
+
+  -- Verify the file was written correctly
+  local written = cosmo.Slurp(filepath)
+  assert(written == content, "write_temp: file content mismatch for " .. name)
+
   return filepath
 end
 
@@ -148,6 +157,10 @@ local function test_teal_with_shebang()
 local x: number = 777
 print("shebang=" .. x)
 ]])
+
+  -- Verify the file exists and has correct content
+  local verify = cosmo.Slurp(script)
+  assert(verify:find("shebang="), "script file should contain shebang test code, got: " .. verify:sub(1, 100))
 
   local ok, out = spawn({cosmic, script}, {stderr = 1}):read()
   assert(ok, "cosmic should execute .tl file with shebang, got: " .. tostring(out))
