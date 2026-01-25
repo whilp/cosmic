@@ -25,9 +25,8 @@ local record Opts
   embed: {string}          -- Files to embed via --embed
   output: string           -- Output file for --embed (defaults to "cosmic")
   example: string          -- Input file for --example (run examples)
+  benchmark: string        -- Input file for --benchmark (run benchmarks)
   doc: string              -- Input file for --doc (generate docs)
-  doc_index: {string}      -- Files for --doc-index (generate serialized index)
-  docs: boolean | string   -- Show embedded docs (optional module/symbol query)
   error: string            -- Parse error message
 end
 
@@ -47,9 +46,8 @@ local function parse_args(): Opts
     embed = {},
     output = nil,
     example = nil,
+    benchmark = nil,
     doc = nil,
-    doc_index = {},
-    docs = nil,
     error = nil,
   }
 
@@ -61,9 +59,8 @@ local function parse_args(): Opts
     { "embed", "required", nil },
     { "output", "required", nil },
     { "example", "required", nil },
+    { "benchmark", "required", nil },
     { "doc", "required", nil },
-    { "doc-index", "required", nil },
-    { "docs", "required", nil },
   }
 
   -- Parse shortopts to build set of options that require arguments
@@ -186,13 +183,11 @@ local function parse_args(): Opts
     elseif opt == "example" then
       opts.example = optarg
       return opts
+    elseif opt == "benchmark" then
+      opts.benchmark = optarg
+      return opts
     elseif opt == "doc" then
       opts.doc = optarg
-      return opts
-    elseif opt == "doc-index" then
-      opts.doc_index[#opts.doc_index + 1] = optarg
-    elseif opt == "docs" then
-      opts.docs = optarg
       return opts
     end
   end
@@ -219,6 +214,30 @@ end
 local function run_repl()
   io.write(_VERSION .. "  Copyright (C) 1994-2024 Lua.org, PUC-Rio\n")
   debug.debug()
+end
+
+-- Load a script file (.tl or .lua)
+-- Compiles .tl files through Teal, loads .lua files directly
+local function load_script_file(script_path: string): function(...: any): any..., string
+  -- Compile .tl files through Teal, load .lua files directly
+  if script_path:match("%.tl$") then
+    local teal = require("cosmic.teal")
+    local result = teal.compile(script_path)
+    if not result.ok then
+      return nil, teal.format_issues(result.errors)
+    end
+    -- Strip shebang from compiled code before loading (Lua parser doesn't handle shebangs)
+    local code = result.code
+    if code:sub(1, 2) == "#!" then
+      local newline_pos = code:find("\n")
+      if newline_pos then
+        code = code:sub(newline_pos + 1)
+      end
+    end
+    return load(code, "@" .. script_path)
+  else
+    return loadfile(script_path)
+  end
 end
 
 local function main(): integer, string
@@ -268,9 +287,8 @@ local function main(): integer, string
       io.write("  --embed <file>           embed file(s) into cosmic (use multiple times)\n")
       io.write("  --output <file>          output file for --embed (default: cosmic)\n")
       io.write("  --example <file.tl>      run Example_* functions, check output\n")
+      io.write("  --benchmark <file.tl[:pattern]>  run Benchmark_* functions, report timing\n")
       io.write("  --doc <file.tl>          generate markdown documentation\n")
-      io.write("  --doc-index <file>       build doc index (use multiple times)\n")
-      io.write("  --docs <query>           show embedded docs (list|module[.symbol])\n")
       io.write("  --help [module]          show help for cosmic or a module\n")
       io.write("\n")
       io.write("Standard lua options:\n")
@@ -333,6 +351,25 @@ local function main(): integer, string
     return result.exit_code
   end
 
+  -- Handle --benchmark
+  -- Supports: --benchmark file.tl or --benchmark file.tl:pattern
+  if opts.benchmark then
+    local benchmark = require("cosmic.benchmark")
+    local file_path = opts.benchmark
+    local filter: string = nil
+
+    -- Check for colon-separated filter pattern
+    local colon_pos = opts.benchmark:find(":[^/\\]") -- Avoid matching Windows paths or protocol prefixes
+    if colon_pos then
+      file_path = opts.benchmark:sub(1, colon_pos - 1)
+      filter = opts.benchmark:sub(colon_pos + 1)
+    end
+
+    local result = benchmark.run(file_path, filter)
+    io.write(benchmark.format_results(file_path, result) .. "\n")
+    return result.exit_code
+  end
+
   -- Handle --doc
   if opts.doc then
     local doc = require("cosmic.doc")
@@ -342,48 +379,6 @@ local function main(): integer, string
       return 0
     else
       io.stderr:write(output .. "\n")
-      return 1
-    end
-  end
-
-  -- Handle --doc-index: generate serialized doc index from multiple files
-  if #opts.doc_index > 0 then
-    local doc = require("cosmic.doc")
-    local modules: {string:any} = {}
-
-    for _, file_path in ipairs(opts.doc_index) do
-      local module_doc, err = doc.parse_file(file_path)
-      if not module_doc then
-        io.stderr:write("error: " .. file_path .. ": " .. (err or "unknown") .. "\n")
-        return 1
-      end
-
-      -- Derive module name from file path
-      local name = file_path:gsub("%.d%.tl$", ""):gsub("%.tl$", "")
-      name = name:gsub("^lib/", ""):gsub("^types/", ""):gsub("/", ".")
-
-      modules[name] = module_doc
-    end
-
-    local cosmo = require("cosmo")
-    io.write(cosmo.EncodeLua({ modules = modules }))
-    return 0
-  end
-
-  -- Handle --docs
-  if opts.docs then
-    local docs = require("cosmic.docs")
-    local query = opts.docs as string
-    -- Special keywords to list all modules
-    if query == "list" or query == "all" or query == "." then
-      query = nil
-    end
-    local result = docs.run(query)
-    if result.ok then
-      io.write(result.output .. "\n")
-      return 0
-    else
-      io.stderr:write(result.output .. "\n")
       return 1
     end
   end
@@ -414,21 +409,7 @@ local function main(): integer, string
   -- Execute script file
   if opts.script then
     _G.arg = opts.script_args as {string}
-    local chunk: function(...: any): any...
-    local err: string
-
-    -- Compile .tl files through Teal, load .lua files directly
-    if opts.script:match("%.tl$") then
-      local teal = require("cosmic.teal")
-      local result = teal.compile(opts.script)
-      if not result.ok then
-        return 1, teal.format_issues(result.errors)
-      end
-      chunk, err = load(result.code, "@" .. opts.script)
-    else
-      chunk, err = loadfile(opts.script)
-    end
-
+    local chunk, err = load_script_file(opts.script)
     if not chunk then
       return 1, "cosmic-lua: " .. (err or "error loading script")
     end

@@ -123,6 +123,40 @@ cosmic/
 └── o/               # Build output directory (created during build)
 ```
 
+## Documentation
+
+### cosmo Package
+
+Core Cosmopolitan Libc bindings and system interfaces.
+
+| Module | Description |
+|--------|-------------|
+| [argon2](https://github.com/whilp/cosmic/blob/docs/cosmo/argon2.md) | Password hashing using the Argon2 algorithm. |
+| [finger](https://github.com/whilp/cosmic/blob/docs/cosmo/finger.md) | TCP SYN packet fingerprinting. |
+| [getopt](https://github.com/whilp/cosmic/blob/docs/cosmo/getopt.md) | Command-line option parsing. |
+| [goodsocket](https://github.com/whilp/cosmic/blob/docs/cosmo/goodsocket.md) | Low-level socket programming with network constants. |
+| [lsqlite3](https://github.com/whilp/cosmic/blob/docs/cosmo/lsqlite3.md) | SQLite3 database bindings. |
+| [maxmind](https://github.com/whilp/cosmic/blob/docs/cosmo/maxmind.md) | MaxMind GeoIP database lookups. |
+| [path](https://github.com/whilp/cosmic/blob/docs/cosmo/path.md) | File path manipulation utilities. |
+| [re](https://github.com/whilp/cosmic/blob/docs/cosmo/re.md) | POSIX regular expression matching. |
+| [unix](https://github.com/whilp/cosmic/blob/docs/cosmo/unix.md) | POSIX system interfaces and shared memory. |
+| [zip](https://github.com/whilp/cosmic/blob/docs/cosmo/zip.md) | ZIP archive reading and writing. |
+
+### cosmic Package
+
+High-level utilities and tools built on top of cosmo.
+
+| Module | Description |
+|--------|-------------|
+| [doc](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/doc.md) | Extract documentation from Teal files and render as markdown. |
+| [embed](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/embed.md) | Embed files into cosmic executable. |
+| [example](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/example.md) | Go-style executable example testing. |
+| [fetch](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/fetch.md) | Structured HTTP fetch with optional retry. |
+| [init](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/init.md) | Cosmopolitan Lua utilities. |
+| [spawn](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/spawn.md) | Process spawning utilities. |
+| [teal](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/teal.md) | Teal compilation and type-checking. |
+| [walk](https://github.com/whilp/cosmic/blob/docs/lib/cosmic/walk.md) | Directory tree walking utilities. |
+
 ## License
 
 MIT License - See LICENSE file

@@ -202,6 +202,23 @@ $(o)/%.tl.example.got: %.tl $(cosmic_bin) | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@set +e; $(cosmic_bin) --example $< > $(basename $@).out 2> $(basename $@).err; echo $$? > $@
 
+# Benchmark testing - run Benchmark_* functions in .tl files (exclude test files)
+all_benchmark_srcs := $(call filter-only,$(foreach m,$(modules),$(filter-out $($(m)_tests),$($(m)_tl))))
+all_benchmarks := $(patsubst %.tl,$(o)/%.tl.benchmark.got,$(all_benchmark_srcs))
+
+.PHONY: benchmark
+## Run all benchmarks
+benchmark: $(o)/benchmark-summary.txt
+
+$(o)/benchmark-summary.txt: $(all_benchmarks) | $(build_reporter)
+	@$(reporter) --dir $(o) $^ | tee $@
+
+$(o)/%.tl.benchmark.got: .PLEDGE = stdio rpath wpath cpath proc exec
+$(o)/%.tl.benchmark.got: .UNVEIL = rx:$(o)/bootstrap r:lib r:3p rwc:$(o) rwc:$(TMP) rx:/usr rx:/proc r:/etc r:/dev/null
+$(o)/%.tl.benchmark.got: %.tl $(cosmic_bin) | $(bootstrap_files)
+	@mkdir -p $(@D)
+	@set +e; $(cosmic_bin) --benchmark $< > $(basename $@).out 2> $(basename $@).err; echo $$? > $@
+
 # Type definition regeneration (manual maintenance task)
 # .d.tl files are checked into the repo and are the source of truth for docs and types.
 # This target is only needed when cosmopolitan's definitions.lua changes.
