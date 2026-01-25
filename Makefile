@@ -115,7 +115,7 @@ $(o)/test-summary.txt: $(all_tested) | $(build_reporter)
 export TEST_O := $(o)
 export TEST_PLATFORM := $(platform)
 export TEST_BIN := $(o)/bin
-export TEST_TMPDIR := $(TMP)
+# TEST_TMPDIR is set per-test in the test rule below using mktemp
 # LUA_PATH: aggregate _lua_dirs from modules
 space := $(subst ,, )
 lua_path_dirs := $(foreach m,$(modules),$($(m)_lua_dirs))
@@ -128,7 +128,11 @@ $(o)/%.tl.test.got: .UNVEIL = rx:$(o)/bootstrap r:lib r:3p rwc:$(o) rwc:$(TMP) r
 $(o)/%.tl.test.got: $(o)/%.lua $(test_files) $(o)/bin/cosmic | $(bootstrap_files)
 	@mkdir -p $(@D)
 	@chmod +x $<
-	-@PATH=$(CURDIR)/$(o)/bin:$$PATH TEST_DIR=$(TEST_DIR) $< > $(basename $@).out 2> $(basename $@).err; STATUS=$$?; echo $$STATUS > $@
+	-@TEST_TMPDIR=$$(mktemp -d $(TMP)/cosmic_test_XXXXXX); \
+	  PATH=$(CURDIR)/$(o)/bin:$$PATH TEST_DIR=$(TEST_DIR) TEST_TMPDIR=$$TEST_TMPDIR $< > $(basename $@).out 2> $(basename $@).err; \
+	  STATUS=$$?; \
+	  rm -rf $$TEST_TMPDIR; \
+	  echo $$STATUS > $@
 
 # expand test deps: M's tests depend on own _files/_tl plus deps' _dir/_files/_lua
 # derive compiled .lua from _tl (first pass: compute all _lua)
