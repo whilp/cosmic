@@ -149,9 +149,9 @@ local x: number = 777
 print("shebang=" .. x)
 ]])
 
-  local ok, out = spawn({cosmic, script}):read()
-  assert(ok, "cosmic should execute .tl file with shebang")
-  assert((out as string):find("shebang=777"), "output should contain expected result")
+  local ok, out = spawn({cosmic, script}, {stderr = 1}):read()
+  assert(ok, "cosmic should execute .tl file with shebang, got: " .. tostring(out))
+  assert((out as string):find("shebang=777"), "output should contain expected result, got: " .. tostring(out))
 end
 test_teal_with_shebang()
 
