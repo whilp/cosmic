@@ -1,5 +1,5 @@
 --- Generate a serialized documentation index from source files.
---- Called from doc-index.lua entry point.
+--- Run directly as a script with source files as arguments.
 
 local doc = require("cosmic.doc")
 local cosmo = require("cosmo")
