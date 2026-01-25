@@ -32,6 +32,7 @@ High-level utilities and tools built on top of cosmo.
 | [embed](lib/cosmic/embed.md) |  Embed files into cosmic executable. |
 | [example](lib/cosmic/example.md) |  Go-style executable example testing. |
 | [fetch](lib/cosmic/fetch.md) |  Structured HTTP fetch with optional retry. |
+| [gendoc](lib/cosmic/gendoc.md) |  |
 | [init](lib/cosmic/init.md) |  Cosmopolitan Lua utilities. |
 | [spawn](lib/cosmic/spawn.md) |  Process spawning utilities. |
 | [teal](lib/cosmic/teal.md) |  Teal compilation and type-checking. |
@@ -39,7 +40,7 @@ High-level utilities and tools built on top of cosmo.
 
 ---
 
-Documentation is generated from Teal source files using `cosmic --doc`.
+Documentation is generated from Teal source files using the `cosmic.doc` module.
 
 To regenerate locally:
 ```bash

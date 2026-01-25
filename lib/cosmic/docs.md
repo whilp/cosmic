@@ -107,6 +107,22 @@ local record DocsResult
 end
 ```
 
+### SearchResult
+
+ Search result entry.
+
+```teal
+local record SearchResult
+  module_name: string
+  symbol_name: string
+  symbol_type: string
+  description: string
+  match_score: integer
+  --  Search documentation for a query string.
+  query: string): {SearchResult}
+end
+```
+
 ### DocsModule
 
 ```teal
@@ -116,6 +132,8 @@ local record DocsModule
   list_topics: function(): {{string, string}}
   load_index: function(): DocIndex, string
   render_module: function(name: string, doc: ModuleDoc): string
+  search: function(query: string): {SearchResult}
+  render_search_results: function(results: {SearchResult}, query: string): string
 end
 ```
 
@@ -170,6 +188,39 @@ function render_module(name: string, doc: ModuleDoc): string
 
 - `name` (string) - Module name
 - `doc` (ModuleDoc) - Module documentation
+
+**Returns:**
+
+- string - Formatted output
+
+### search
+
+```teal
+function search(query: string): {SearchResult}
+```
+
+ Search documentation for a query string.
+
+**Parameters:**
+
+- `query` (string) - The search query
+
+**Returns:**
+
+- {SearchResult} - List of search results, sorted by relevance
+
+### render_search_results
+
+```teal
+function render_search_results(results: {SearchResult}, query: string): string
+```
+
+ Render search results as CLI output.
+
+**Parameters:**
+
+- `results` ({SearchResult}) - List of search results
+- `query` (string) - The original search query
 
 **Returns:**
 
