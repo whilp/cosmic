@@ -68,10 +68,19 @@ cosmic-lua aims to be the definitive portable scripting platform. These goals ar
 **Recommendation**: This goal is ~90% complete and functionally met for practical use. The automated testing proves that agents can successfully write correct programs using only the embedded documentation. The remaining work is polish: adding doc comments to the core cosmo module.
 
 **Test Evidence**:
-- Automated test harness: test_agent_intuition_harness.sh
-- Detailed results: AGENT_INTUITION_TEST_RESULTS.md
-- Working scripts in: /tmp/cosmic-agent-test/task{1-6}/
-- All 6 subagents completed tasks independently using only --help and --docs
+- **Automated Tests** (re-runnable via `make test`):
+  - `lib/cosmic/agent_intuition_task1_test.tl` - Fetch JSON
+  - `lib/cosmic/agent_intuition_task2_test.tl` - Spawn subprocess
+  - `lib/cosmic/agent_intuition_task4_test.tl` - SQLite operations
+  - Run with: `RUN_AGENT_TESTS=1 make test`
+  - See: `lib/cosmic/AGENT_TESTS.md` for details
+- **Test Harness** (manual spawning):
+  - Setup script: `test_agent_intuition.sh`
+  - Task definitions: `test/agent_intuition/run_agent_harness.tl`
+  - Detailed results: `AGENT_INTUITION_TEST_RESULTS.md`
+- **Initial Validation** (2026-01-27):
+  - 6/6 tasks completed by fresh agents (100% success rate)
+  - Agents used only `--help` and `--docs` (no codebase access)
 
 ---
 
