@@ -289,6 +289,21 @@ ci:
 		echo "::endgroup::";)
 	@if [ -f $(o)/failed ]; then echo "failed:"; cat $(o)/failed; exit 1; fi
 
+# Home asset - tarball for installing cosmic-lua in user home directory
+home_asset := $(o)/cosmic-lua-home.tar.gz
+home_staging := $(o)/home-staging
+
+.PHONY: home
+## Create home asset tarball with .local/bin/cosmic-lua and lua symlink
+home: $(home_asset)
+
+$(home_asset): $(cosmic_bin)
+	@mkdir -p $(home_staging)/.local/bin
+	@$(cp) $(cosmic_bin) $(home_staging)/.local/bin/cosmic-lua
+	@ln -sf cosmic-lua $(home_staging)/.local/bin/lua
+	@tar -czf $@ -C $(home_staging) .local
+	@echo "Home asset created: $@"
+
 debug-modules:
 	@echo $(modules)
 
