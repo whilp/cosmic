@@ -366,7 +366,9 @@ local function handle_docs(query: string): integer
 end
 
 --- Handle --check lint flag.
-local function handle_check_style(file: string): integer
+--- @param file string The file to lint
+--- @param max_lines integer? The file-length cap; default 500 when absent
+local function handle_check_style(file: string, max_lines?: integer): integer
   local span = instrument.begin("check-style", file)
   local f = io.open(file, "r")
   if not f then
@@ -378,7 +380,7 @@ local function handle_check_style(file: string): integer
   -- `_cli.lint` is the one entry point, so `--check lint` and
   -- `--make lint` cannot disagree about what the style gate is.
   local lint = require("_cli.lint")
-  local found, lerr = lint.lint_file(file)
+  local found, lerr = lint.lint_file(file, max_lines)
   if not found then
     io.stderr:write(file .. ": " .. (lerr or "cannot lint") .. "\n")
     instrument.finish(span, 1)
@@ -428,7 +430,7 @@ local record HandlersModule
   handle_format: function(file: string, output?: string, write_if_changed?: boolean): integer, string
   handle_check_format: function(file: string): integer
   handle_check_types: function(file: string, include_dirs?: {string}): integer
-  handle_check_style: function(file: string): integer
+  handle_check_style: function(file: string, max_lines?: integer): integer
   handle_embed: function(paths: {string}, output: string, exe?: string): integer
   handle_extract: function(dir: string, exe?: string): integer
   handle_check_examples: function(file: string): integer

@@ -24,6 +24,11 @@ local record Options
   --- The kind named by `--check <kind>`, and the files it applies to.
   check_kind: string
   check_files: {string}
+  --- With `--check lint` (or `--make lint`): the file-length cap named
+  --- by `--max-lines`. nil when absent, so the 500 default lives at
+  --- the one place that already held it (`_tool.lint.DEFAULT_FILE_LINES`)
+  --- rather than being duplicated here.
+  max_lines: integer
   --- The pattern named by `--find <pattern>`, and the paths it searches
   --- (empty means the project's own `.tl` sources).
   find_pattern: string
@@ -221,6 +226,9 @@ local function parse_args(): Options
     -- which the parser has left in p.args.
     opts.check_kind = p.values["check"]
     opts.check_files = cli_args.with_extra_paths(nil, p.args)
+  end
+  if p.values["max-lines"] then
+    opts.max_lines = math.tointeger(tonumber(p.values["max-lines"]))
   end
   if p.values["find"] then
     -- The pattern is the flag's argument; the paths are the

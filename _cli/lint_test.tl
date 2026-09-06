@@ -51,6 +51,23 @@ local function test_lint_file_over_default()
   assert(diagnostics[1].rule == "file-length", "expected file-length rule")
 end
 
+-- `--max-lines` overrides the default: a 12-line file passes at the
+-- default 500 but fires at an explicit 10.
+local function test_lint_file_max_lines_override()
+  local path = fs.join(tmpdir, "twelve.tl")
+  local lines: {string} = {}
+  for i = 1, 12 do
+    table.insert(lines, "-- line " .. tostring(i))
+  end
+  assert(fs.write(path, table.concat(lines, "\n") .. "\n"))
+
+  local diagnostics = check.must(lint.lint_file(path, 10))
+  assert(#diagnostics == 1,
+    "expected 1 diagnostic under --max-lines 10, got: " .. tostring(#diagnostics))
+  assert(diagnostics[1].rule == "file-length", "expected file-length rule")
+  assert(diagnostics[1].message:match("10"), "expected the override limit in the message")
+end
+
 -- A file whose bytes contain NUL has no line grammar to cap — it is a
 -- binary the project walk swept in, and the file-length rule does not
 -- run on it at all, regardless of how many newline bytes it happens to

@@ -278,9 +278,12 @@ end
 --- `.d.tl` declarations are exempt: they describe C binding interfaces
 --- and cannot be split under Teal's record system.
 --- @param path string The file to check
+--- @param max_lines integer? The file-length cap; `style.DEFAULT_FILE_LINES`
+--- (500) when absent, so a caller that never passes it keeps today's
+--- behaviour.
 --- @return {Diagnostic}|nil The findings, or nil when unreadable
 --- @return string The error message
-local function lint_file(path: string): {Diagnostic} | nil, string
+local function lint_file(path: string, max_lines?: integer): {Diagnostic} | nil, string
   if path:match("%.d%.tl$") then
     return {}
   end
@@ -321,7 +324,7 @@ local function lint_file(path: string): {Diagnostic} | nil, string
   -- lines to count or split. The file-length rule has nothing to say
   -- about it, so it does not run.
   if not is_binary then
-    diagnostics = style.check_file_length(path, n, style.DEFAULT_FILE_LINES)
+    diagnostics = style.check_file_length(path, n, max_lines or style.DEFAULT_FILE_LINES)
     -- A length failure on something that is not Teal/Lua source is almost
     -- never fixed by splitting the file: it is prose or data the project
     -- walk swept in, and the fix the model already provides is
@@ -407,7 +410,7 @@ local record LintModule
   lines: {string}): {Diagnostic}
   check_throw_justification: function(file: string, content: string,
   lines: {string}): {Diagnostic}
-  lint_file: function(path: string): {Diagnostic} | nil, string
+  lint_file: function(path: string, max_lines?: integer): {Diagnostic} | nil, string
 end
 
 local M: LintModule = {

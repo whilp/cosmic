@@ -40,9 +40,11 @@ local RETIRED < const >: {string: string} = {
 --- @param kind string Which check: types, fmt, lint or example
 --- @param file string The file to check
 --- @param include_dirs {string} Include path, for the type check
+--- @param max_lines integer? With kind "lint": the file-length cap
+--- (default 500 when absent); ignored by every other kind.
 --- @return integer Exit code
 local function run_one(kind: string, file: string,
-    include_dirs: {string}): integer
+    include_dirs: {string}, max_lines?: integer): integer
   if RETIRED[kind] then
     io.stderr:write("cosmic-lua: --check " .. kind .. " is now `--check " ..
       RETIRED[kind] .. "` (the kind and the verb are one word now)\n")
@@ -68,7 +70,7 @@ local function run_one(kind: string, file: string,
   elseif kind == "fmt" then
     return handlers.handle_check_format(file)
   elseif kind == "lint" then
-    return handlers.handle_check_style(file)
+    return handlers.handle_check_style(file, max_lines)
   end
   return handlers.handle_check_examples(file)
 end
@@ -82,15 +84,17 @@ end
 --- @param kind string Which check: types, fmt, lint or example
 --- @param files {string} The files to check, in order
 --- @param include_dirs {string} Include path, for the type check
+--- @param max_lines integer? With kind "lint": the file-length cap
+--- (default 500 when absent); ignored by every other kind.
 --- @return integer Exit code
 local function run(kind: string, files: {string},
-    include_dirs: {string}): integer
+    include_dirs: {string}, max_lines?: integer): integer
   if #files == 0 then
-    return run_one(kind, "", include_dirs)
+    return run_one(kind, "", include_dirs, max_lines)
   end
   local worst = 0
   for _, file in ipairs(files) do
-    local code = run_one(kind, file, include_dirs)
+    local code = run_one(kind, file, include_dirs, max_lines)
     if code > worst then
       worst = code
     end
@@ -101,7 +105,8 @@ end
 local record CheckModule
   KINDS: {string: string}
   RETIRED: {string: string}
-  run: function(kind: string, files: {string}, include_dirs: {string}): integer
+  run: function(kind: string, files: {string}, include_dirs: {string},
+  max_lines?: integer): integer
 end
 
 local M: CheckModule = {

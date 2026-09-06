@@ -109,7 +109,7 @@ local function main(): integer, string
   end
   if opts.check_kind then
     return require("_cli.check").run(opts.check_kind, opts.check_files,
-      opts.include_dirs)
+      opts.include_dirs, opts.max_lines)
   end
   if opts.find_pattern then
     return require("_cli.find").run(opts.find_pattern, opts.find_paths)

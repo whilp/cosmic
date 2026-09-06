@@ -260,7 +260,7 @@ lint: $(O)/lint-summary.txt
 # sees a `.md`, a `.mk` and a `.yml`, and why it is a verb of its own
 # rather than a stage of `check`.
 $(O)/%.lint.got: % $(O)/.stamp/lint
-	record $(basename $@) $(COSMIC) --check lint $< ;
+	record $(basename $@) $(COSMIC) --check lint --max-lines 500 $< ;
 
 $(O)/lint-summary.txt: $(lint_got)
 	tee $@ $(COSMIC) --report $(lint_got) ;

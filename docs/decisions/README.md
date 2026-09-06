@@ -73,7 +73,7 @@ build when the committed copy drifts.
 | D36 | a disagreeing baseline pair earns a third reading and is judged by the median | active | [→](d36-baseline-tiebreak-third-reading.md) |
 | D37 | the board holds two states; quality is two gates, not stages | amended 2026-09 (D45 replaced the blocked_by edge) | [→](d37-two-states-two-gates.md) |
 | D38 | main lands through a GitHub merge queue; board keeps merge-at-accept | amended 2026-08 (gate/* mirror retired) | [→](d38-merge-queue-on-main.md) |
-| D39 | no prose exemption from the file cap; reclaim before you split | active | [→](d39-no-prose-exemption-from-the-file-cap.md) |
+| D39 | no prose exemption from the file cap; reclaim before you split | amended 2026-09 (the cap became an option) | [→](d39-no-prose-exemption-from-the-file-cap.md) |
 | D40 | sandbox.apply reports full/degraded/skipped per section, and refuses when nothing enforced | active | [→](d40-sandbox-enforcement-report.md) |
 | D41 | entry.stat is a lazy method, not an eager field | active | [→](d41-lazy-entry-stat.md) |
 | D42 | a verified outcome is held by a marker, not ended; a child filed under it clears the hold | superseded by D45 | [→](d42-held-outcome-is-a-marker-not-an-ending.md) |
