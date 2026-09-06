@@ -3,6 +3,7 @@
 local check = require("cosmic.check")
 local fs = require("cosmic.fs")
 local lint = require("_cli.lint")
+local lint_limit = require("_cli.lint_limit")
 local style = require("_tool.lint")
 
 local tmpdir = os.getenv("TEST_TMPDIR") or "/tmp"
@@ -51,8 +52,8 @@ local function test_lint_file_over_default()
   assert(diagnostics[1].rule == "file-length", "expected file-length rule")
 end
 
--- `--max-lines` overrides the default: a 12-line file passes at the
--- default 500 but fires at an explicit 10.
+-- `--max-lines` overrides the default through `_cli.lint_limit`: a 12-line
+-- file passes at the default 500 but fires at an explicit 10.
 local function test_lint_file_max_lines_override()
   local path = fs.join(tmpdir, "twelve.tl")
   local lines: {string} = {}
@@ -61,7 +62,9 @@ local function test_lint_file_max_lines_override()
   end
   assert(fs.write(path, table.concat(lines, "\n") .. "\n"))
 
-  local diagnostics = check.must(lint.lint_file(path, 10))
+  lint_limit.set(10)
+  local diagnostics = check.must(lint.lint_file(path))
+  lint_limit.set(nil)
   assert(#diagnostics == 1,
     "expected 1 diagnostic under --max-lines 10, got: " .. tostring(#diagnostics))
   assert(diagnostics[1].rule == "file-length", "expected file-length rule")

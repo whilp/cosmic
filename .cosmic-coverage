@@ -35,6 +35,7 @@ return {
   ["_cli/grants.tl"] = {["covered"] = 158, ["total"] = 168},
   ["_cli/help.tl"] = {["covered"] = 46, ["total"] = 48},
   ["_cli/lint.tl"] = {["covered"] = 190, ["total"] = 215},
+  ["_cli/lint_limit.tl"] = {["covered"] = 9, ["total"] = 9},
   ["_cli/lint_render.tl"] = {["covered"] = 26, ["total"] = 26},
   ["_cli/main_handlers.tl"] = {["covered"] = 11, ["total"] = 221},
   ["_cli/nilreturn.tl"] = {["covered"] = 105, ["total"] = 109},
