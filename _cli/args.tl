@@ -31,6 +31,12 @@ local spec: flags.Spec = {
     -- to — so the per-file spelling and the project-wide one are one
     -- vocabulary instead of four flags beside four verbs.
     {long = "check", arg = "KIND", help = "run one check kind on files"},
+    -- With `--check lint`: the file-length cap. Absent means 500, the
+    -- constant `_tool.lint.DEFAULT_FILE_LINES` already held before this
+    -- flag existed, so a project that never passes it keeps today's
+    -- behaviour. Ignored by every other kind.
+    {long = "max-lines", arg = "N",
+      help = "with --check lint: file-length cap (default 500)"},
     {long = "find", arg = "PATTERN", help = "structural search over cosmic.ast.match"},
     {long = "embed", arg = "PATH", repeated = true,
       help = "embed a file into the output executable"},

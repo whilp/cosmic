@@ -1,7 +1,7 @@
 # D39 — no prose exemption from the file cap; reclaim before you split
 
 - **date:** 2026-08
-- **status:** active
+- **status:** amended 2026-09 (the cap became an option)
 - **context:** `--check lint`'s file-length rule holds every file the
   project walk sees to ≤500 lines, `.md` included (`docs/guides/lint.md`),
   and AGENTS.md is itself one of the files it gates.
@@ -67,3 +67,15 @@
   lying and is what would force a revisit. changing what earns a prose
   exemption from the cap, or what "reclaim before split" requires, means
   amending this record.
+- **amended 2026-09 (the cap became an option):** the 500 was a hardcoded
+  constant (`_tool/lint.tl`'s `DEFAULT_FILE_LINES`) with no way for a
+  project, or this tree's own `ci` recipe, to state the number it
+  expects — a spec-stated per-file cap on another project had no
+  mechanical check either, and two files shipped 14–73% over it
+  unnoticed. `--check lint --max-lines N` (and `--make lint`, via
+  `embed/cosmic.mk`'s recipe) makes the cap a per-invocation option;
+  absent, it still defaults to 500, so every project's existing
+  behaviour is unchanged. This tree's own recipe now states
+  `--max-lines 500` explicitly rather than relying on the default. The
+  decision above is untouched: no file earns exemption from the cap for
+  being prose, whatever N a project picks, and `.d.tl` stays exempt.

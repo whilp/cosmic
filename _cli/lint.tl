@@ -22,6 +22,7 @@ local pattern_args = require("_cli.pattern_args")
 local reads_lint = require("_cli.reads_lint")
 local returns = require("_cli.returns")
 local style = require("_tool.lint")
+local lint_limit = require("_cli.lint_limit")
 local throw_lint = require("_cli.throw_lint")
 local tl = require("tl")
 local visibility = require("_cli.visibility")
@@ -321,7 +322,8 @@ local function lint_file(path: string): {Diagnostic} | nil, string
   -- lines to count or split. The file-length rule has nothing to say
   -- about it, so it does not run.
   if not is_binary then
-    diagnostics = style.check_file_length(path, n, style.DEFAULT_FILE_LINES)
+    diagnostics = style.check_file_length(path, n,
+      lint_limit.get() or style.DEFAULT_FILE_LINES)
     -- A length failure on something that is not Teal/Lua source is almost
     -- never fixed by splitting the file: it is prose or data the project
     -- walk swept in, and the fix the model already provides is

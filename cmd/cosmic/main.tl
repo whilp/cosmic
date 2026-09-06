@@ -108,6 +108,7 @@ local function main(): integer, string
       end)
   end
   if opts.check_kind then
+    require("_cli.lint_limit").set(opts.max_lines)
     return require("_cli.check").run(opts.check_kind, opts.check_files,
       opts.include_dirs)
   end

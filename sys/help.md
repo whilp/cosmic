@@ -17,6 +17,8 @@ Cosmic options:
                                   example   run Example_* and check output
                                 a kind IS its verb: the whole project is
                                 `--make check|fmt|lint|example`
+  --max-lines <n>               with --check lint: file-length cap
+                                (default 500)
   --find <pattern> [path]...    structural search: cosmic.ast.match over
                                 .tl files ($NAME/$$$NAME captures;
                                 default: this project's .tl sources)

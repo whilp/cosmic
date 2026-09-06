@@ -44,3 +44,20 @@ local function test_optional_arg_flag()
   local opts = parse.parse_args()
   assert(opts.examples == "", "got: " .. tostring(opts.examples))
 end
+
+local function test_max_lines_flag()
+  -- `--max-lines` is an integer option for `--check lint`; absent, it
+  -- stays nil so the 500 default lives at the one place that already
+  -- held it rather than being duplicated here.
+  _G.arg = {[0] = "cosmic", [1] = "--check", [2] = "lint",
+    [3] = "--max-lines", [4] = "10", [5] = "foo.tl"}
+  local opts = parse.parse_args()
+  assert(opts.check_kind == "lint", "got: " .. tostring(opts.check_kind))
+  assert(opts.max_lines == 10, "got: " .. tostring(opts.max_lines))
+  assert(opts.check_files[1] == "foo.tl", "got: " .. tostring(opts.check_files[1]))
+
+  _G.arg = {[0] = "cosmic", [1] = "--check", [2] = "lint", [3] = "foo.tl"}
+  local opts_absent = parse.parse_args()
+  assert(opts_absent.max_lines == nil,
+    "got: " .. tostring(opts_absent.max_lines))
+end
