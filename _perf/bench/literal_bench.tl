@@ -52,9 +52,12 @@ local function build_pin(): {string: any}
 end
 
 --- Build a coverage-floor-shaped table: one `{covered, total}` row per
---- source path. `.cosmic-coverage` carries 251 and is the largest literal
---- this toolchain reads; 100 is that shape at a per-op cost the harness
---- resolves without flagging its own A/A noise floor.
+--- source path. Coverage itself dropped its committed floor for a
+--- command-line one (`docs/decisions/d27-one-committed-floor.md`), so
+--- `_build/casts_baseline.tl` (65 rows) is now the largest committed
+--- `cosmic.literal` input left in this toolchain; 100 is still a
+--- representative per-op cost the harness resolves without flagging
+--- its own A/A noise floor.
 --- @return {string: any} The floor, keyed by path
 local function build_floor(): {string: any}
   local rows: {string: any} = {}

@@ -8,9 +8,9 @@
 -- links to.
 --
 -- The rows stay committed because they are read on GitHub, by people
--- who are not running a build. So this is the `.cosmic-coverage` shape:
--- a derived file, a command that rewrites it, and a gate that fails
--- when the committed copy has gone stale.
+-- who are not running a build. So this is the `_build/casts_baseline.tl`
+-- shape: a derived file, a command that rewrites it, and a gate that
+-- fails when the committed copy has gone stale.
 
 local check = require("cosmic.check")
 local derive = require("_docs.derive")

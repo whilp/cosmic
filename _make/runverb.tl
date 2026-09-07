@@ -100,8 +100,9 @@ end
 --- and those flags are the harness's.
 --- The target's arguments are kept HERE rather than handed back to the
 --- registry, next to the rule that produced them -- the same shape
---- `--baseline` and `--fix` have over there, for the same reason: it is
---- not a selection, it is what the verb does with the one it has.
+--- `--fix` and `--min`/`--min-file` have over there, for the same
+--- reason: it is not a selection, it is what the verb does with the
+--- one it has.
 --- @param argv {string} The full `--make` argv
 --- @param from integer The first index after the verb name
 --- @return string|nil The target path, or nil when none was given

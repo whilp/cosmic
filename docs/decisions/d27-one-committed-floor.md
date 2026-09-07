@@ -1,7 +1,7 @@
 # D27 — every committed floor is a `cosmic.literal` file, and duplicate keys are refused by default
 
 - **date:** 2026-08
-- **status:** active
+- **status:** amended 2026-09 (coverage's floor is no longer a file)
 - **context:** three gates already commit a "floor" — a file the build
   reads back and compares against, rather than a config a human hand-edits:
   `_build/casts_baseline.tl` (per-file cast counts), `_build/public_surface_baseline.tl`
@@ -89,3 +89,10 @@
   shape `cosmic.literal`'s domain refuses (an array, a non-string key):
   that is a reason to extend the grammar, not to reach for a second
   format.
+- **amended 2026-09 (coverage's floor is no longer a file):**
+  `.cosmic-coverage` and its ratchet are gone; `cosmic --make coverage
+  --min PCT [--min-file PCT]` refuses under either number, computed
+  fresh from the same `.cov` data every run, with no committed floor to
+  merge, hand-edit, or rewrite. The H1's claim still holds for the
+  floors that remain: `_build/casts_baseline.tl` and
+  `_build/public_surface_baseline.tl` are still `cosmic.literal` files.
