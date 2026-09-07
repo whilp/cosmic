@@ -71,3 +71,32 @@ local function test_rewrite_refuses_a_hit_that_would_drop_a_comment()
   check.equal(result.refused[1].comments[1], "--[[ keep this ]]")
   check.equal(result.code, source)
 end
+
+--- An empty replacement against a call-statement hit removes the whole
+--- STATEMENT -- `test_a()`'s own line entirely, not just its own byte
+--- span spliced with "" -- so the deletion leaves no blank line behind
+--- and `run()` (the one call `$F:^test_()`'s predicate does not match)
+--- survives untouched.
+local function test_rewrite_deletes_a_call_statement_leaving_no_blank_line()
+  local pattern = pattern_ok("$F:^test_()")
+  local source = "test_a()\nrun()\n"
+  local result, err = rewrite_mod.rewrite(source, "delete.tl", pattern, "")
+  assert(result, "rewrite failed: " .. tostring(err))
+  check.equal(#result.refused, 0)
+  check.equal(result.code, "run()\n")
+end
+
+--- The same deletion, reused-refusal side: a comment trailing the
+--- statement on its OWN line sits outside the call node's own byte
+--- span but inside the whole-line range the deletion removes -- the
+--- hit is refused, exactly as a comment inside a normal splice's own
+--- span would be, rather than silently vanishing with the line.
+local function test_rewrite_refuses_a_statement_deletion_that_would_drop_a_trailing_comment()
+  local pattern = pattern_ok("$F:^test_()")
+  local source = "test_a() -- keep this\nrun()\n"
+  local result, err = rewrite_mod.rewrite(source, "refuse_delete.tl", pattern, "")
+  assert(result, "rewrite failed: " .. tostring(err))
+  check.equal(#result.refused, 1)
+  check.equal(result.refused[1].comments[1], "-- keep this")
+  check.equal(result.code, source)
+end

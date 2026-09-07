@@ -11,6 +11,13 @@
 --- match of itself or another rule), no project-wide loop. A rewrite
 --- that would silently delete a comment is refused instead of applied
 --- -- see `dropped_comments` below.
+---
+--- A replacement of exactly `""` against a hit whose own node is a
+--- call-statement (see `is_call_statement`) removes the STATEMENT --
+--- its whole line range, not just its own byte span -- so deleting
+--- `test_a()` leaves no blank line behind. `dropped_comments` is
+--- reused unchanged over that WIDER range, so a trailing comment on
+--- the same line still refuses the hit rather than vanishing with it.
 local node_mod = require("cosmic.ast.node")
 local ast_walk = require("cosmic.ast.walk")
 local ast_match = require("cosmic.ast.match")
@@ -223,6 +230,41 @@ local function dropped_comments(tokens: {tl.Token}, starts: {integer},
   return dropped
 end
 
+--- Is `node` a call-statement -- `f(...)` or `t:m(...)` used bare, as
+--- its own statement, rather than nested inside a larger expression?
+--- The only tl AST shape a call takes at all: an "op" node whose own
+--- operator is "@funcall"/"@method" (confirmed against a real
+--- `test_a()` line with `cosmic --find`: kind "op", `op.op ==
+--- "@funcall"`, no distinct "this is a statement" marker of its own --
+--- position in a "statements" list is what makes one a statement, not
+--- a different node shape).
+--- @param node Node
+--- @return boolean
+local function is_call_statement(node: Node): boolean
+  local op = node.op
+  return node.kind == "op" and op ~= nil and (op.op == "@funcall" or op.op == "@method")
+end
+
+--- The byte range `[a, b]` (inclusive) of every WHOLE LINE `node`'s own
+--- span touches: `span_start`'s line through `span_end`'s line,
+--- including each line's own leading indentation and, except at
+--- end-of-file, its trailing newline -- so removing exactly this range
+--- leaves no blank line where the statement was.
+--- @param node Node
+--- @param tokens {tl.Token} The token stream from the SAME parse as `node`
+--- @param starts {integer} `line_starts`'s own result, for the same source
+--- @param source_len integer The source's own length in bytes
+--- @return integer a
+--- @return integer b
+local function line_range(node: Node, tokens: {tl.Token}, starts: {integer},
+    source_len: integer): integer, integer
+  local sy, _ = ast_walk.span_start(node)
+  local ey, _ = ast_walk.span_end(node, tokens)
+  local a = starts[sy]
+  local b = ey + 1 <= #starts and starts[ey + 1] - 1 or source_len
+  return a, b
+end
+
 --- Find every match of `pattern` in `source` and splice `replacement`
 --- over each one, then reformat the result through `cosmic.format`.
 ---
@@ -258,7 +300,12 @@ local function rewrite(source: string, name: string, pattern: Node,
   local refused: {Refusal} = {}
   for i = #hits, 1, -1 do
     local h = hits[i]
-    local a, b = byte_span(h.node, parsed.tokens, starts)
+    local a, b: integer, integer
+    if desugared == "" and is_call_statement(h.node) then
+      a, b = line_range(h.node, parsed.tokens, starts, #source)
+    else
+      a, b = byte_span(h.node, parsed.tokens, starts)
+    end
     local kept = kept_ranges(h.caps, desugared, parsed.tokens, starts)
     local dropped = dropped_comments(parsed.tokens, starts, a, b, kept)
     if #dropped > 0 then

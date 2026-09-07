@@ -14,7 +14,22 @@
 --- `docs/design/ast-rewrite/tlgrep.tl`, minus that spike's span/splice
 --- logic (the walk item's job) and its CLI/file-traversal driver (the
 --- CLI item's job) -- this module is the matcher alone.
+---
+--- A capture may also carry a Lua pattern predicate on its own name:
+--- `$F:^test_` binds like `$F` but only against a candidate whose own
+--- `tk` matches `^test_`. The predicate cannot survive inside the
+--- identifier tl actually parses (`_F:^test_` would lex as a method
+--- call), so `desugar` strips it before parsing and records it in
+--- `last_predicates`, keyed by the desugared name; `compile_pattern`
+--- reads that table right after parsing and re-attaches each predicate
+--- to the SPECIFIC capture node it belongs to, in `capture_predicates`
+--- (keyed by node identity, since two occurrences of the same name
+--- could each carry a different predicate, or none). Both tables are
+--- module-level rather than fields on `Node` -- `Node` is a closed
+--- record `compile_pattern`'s two-slot fallible return cannot widen to
+--- carry a third value, per the naming charter's fallible-returns rule.
 local node_mod = require("cosmic.ast.node")
+local ast_walk = require("cosmic.ast.walk")
 
 local type Node = node_mod.Node
 
@@ -63,17 +78,70 @@ local function is_rest_capture(tk: any): boolean
   return tk is string and tk:match("^___[A-Z][A-Z0-9_]*$") ~= nil
 end
 
+--- Name -> Lua pattern predicate, populated as a side effect of the
+--- MOST RECENT `desugar` call whose surface syntax carried a
+--- `$NAME:PATTERN` predicate metavariable, keyed by the desugared name
+--- (`_F`). `compile_pattern` reads it immediately after calling
+--- `desugar` (the two always run back-to-back there) and consumes it
+--- into `capture_predicates` before returning -- a LATER `desugar` call
+--- on unrelated text (e.g. `rewrite.tl` desugaring a replacement
+--- template) overwrites it harmlessly, since compile_pattern has
+--- already read what it needed by then.
+local last_predicates: {string: string} = {}
+
+--- Predicate lookup for one capture node inside a compiled pattern's
+--- OWN tree, keyed by the specific `Node` object rather than by name --
+--- two occurrences of the same capture name in one pattern could each
+--- carry a different predicate (or none). Populated once, by
+--- `compile_pattern`; consulted by `match_value` for every capture it
+--- binds.
+local capture_predicates: {Node: string} = {}
+
 --- Rewrite ast-grep-style `$NAME`/`$$$NAME` metavariables into valid
 --- Teal identifiers so the pattern lexes as real source (`$` is not a
 --- legal Teal identifier character). Safe because pattern text is
 --- only ever MATCHED, never spliced back into anything -- the byte
 --- positions this substitution shifts have no effect on output.
+---
+--- A plain capture may carry a `:PATTERN` predicate suffix (`$F:^test_`)
+--- -- stripped here (it cannot survive lexing) and recorded in
+--- `last_predicates` under the desugared name, terminated at the next
+--- whitespace, `(`, `)`, or `,` so a predicate like `^test_` in
+--- `$F:^test_()` does not swallow the call's own parentheses.
 --- @param pattern_src string The pattern in its `$NAME`/`$$$NAME` surface syntax
 --- @return string The same pattern with metavariables rewritten to identifiers
 local function desugar(pattern_src: string): string
+  last_predicates = {}
   local out = pattern_src:gsub("%$%$%$([%u_][%w_]*)", "___%1")
+  out = out:gsub("%$([%u_][%w_]*):([^%s%(%),]+)", function(nm: string, pred: string): string
+      last_predicates["_" .. nm] = pred
+      return "_" .. nm
+    end)
   out = out:gsub("%$([%u_][%w_]*)", "_%1")
   return out
+end
+
+--- Attach every entry of `names` (desugared capture name -> predicate)
+--- onto its own capture node(s) inside `root`'s tree, into
+--- `capture_predicates`. A no-op walk when `names` is empty -- the
+--- common case, since most patterns carry no predicate at all.
+--- @param root Node A freshly compiled pattern's own top node
+--- @param names {string: string} `last_predicates`, snapshotted right after parsing
+--- @return Node `root`, unchanged -- returned for a one-line call site
+local function attach_predicates(root: Node, names: {string: string}): Node
+  if next(names) == nil then
+    return root
+  end
+  ast_walk.walk(root, function(n: Node)
+      local tk = n.tk
+      if (n.kind == "variable" or n.kind == "identifier") and tk is string then
+        local pred = names[tk]
+        if pred then
+          capture_predicates[n] = pred
+        end
+      end
+    end)
+  return root
 end
 
 --- The rest-capture NAME if `node` is a rest-capture marker, else nil.
@@ -200,6 +268,12 @@ match_value = function(pv: any, nv: any, caps: {string: Node}, seen: {any: boole
     if not (nv is {any: any}) then
       return false
     end
+    local pnode = pv as Node -- cast: capture leaf is a node from the compiled pattern's own tree
+    local pred = capture_predicates[pnode]
+    local nv_tk = nv["tk"]
+    if pred and not (nv_tk is string and nv_tk:match(pred) ~= nil) then
+      return false
+    end
     local name = pv["tk"] as string -- cast: narrowed to string by is_capture's own check
     local prev = caps[name]
     if prev then
@@ -257,14 +331,15 @@ local function compile_pattern(pattern_src: string): Node | nil, string
   if not parsed then
     return nil, err
   end
-  return parsed.node[1], nil
+  return attach_predicates(parsed.node[1], last_predicates), nil
 end
 
 --- Match `pattern` against `node`, returning the capture bindings on
 --- success. Subset matching: every named field `pattern` sets must
 --- match; a field `pattern` leaves unset is never consulted, so a
 --- partial pattern matches without spelling out every field of the
---- kind it names.
+--- kind it names. Capture keys carry the desugared `_` prefix (`$CMD`
+--- binds as `_CMD`).
 --- @param pattern Node A compiled pattern (see `compile_pattern`)
 --- @param node Node A candidate node to test
 --- @return {string: Node}|nil Capture bindings by name, or nil when `pattern` does not match `node`
