@@ -16,6 +16,8 @@ local fs = require("cosmic.fs")
 local root = require("_make.root")
 local binsel = require("_make.binaries")
 local converge = require("_make.converge")
+local coverage_limit = require("_make.coverage_limit")
+local flags = require("_make.flags")
 local help = require("_make.help")
 local law = require("_make.law")
 local project = require("_make.project")
@@ -70,16 +72,12 @@ end
 --- needs the registry to find its own row.
 local by_name: function(name: string): Verb | nil
 
---- Whether `coverage` should rewrite the committed floor rather than
---- gate against it. Set by the argv scan in `run` below, read by the
---- registry row: a verb's runner takes the project and its paths, and
---- threading one flag through every signature to reach one row is the
---- worse trade.
-local baseline_wanted = false
-
---- Whether `fmt` should REWRITE rather than report. Same shape as
---- `--baseline` above and the same reason: it is not a selection and
---- not a verb of its own, it is what to do with what the verb finds.
+--- Whether `fmt` should REWRITE rather than report, set by `flags.parse`
+--- in `run` below and read by the registry row: it is not a selection
+--- and not a verb of its own, it is what to do with what the verb
+--- finds. `coverage`'s `--min`/`--min-file` travel the same argv scan
+--- but cross into `_make.policy` instead, so they go through
+--- `coverage_limit` rather than a local here — see that module.
 local fix_wanted = false
 
 --- Generate the payloads and pack the named binaries.
@@ -302,13 +300,6 @@ local VERBS < const >: {Verb} = {
       if not ready then
         return stage.verdict("coverage", false, perr)
       end
-      if baseline_wanted then
-        local code = run_against_stage(v, proj, paths, cosmic)
-        if code ~= 0 then
-          return code
-        end
-        return policy.write_baseline(proj)
-      end
       return policy.run_coverage(v, proj, paths, cosmic)
     end},
   {name = "enforce", planned = true},
@@ -348,20 +339,18 @@ local function run(argv: {string}): integer
     return 0
   end
 
-  -- One flag, on one verb. `--baseline` is not a selection and not a
-  -- verb of its own: rewriting the floor needs the run that produced
-  -- the data, so it is the same verb saying what to do with the result.
-  --
+  -- Flags are not a selection and not a verb of their own: `--fix` says
+  -- what `fmt` does with what it finds, `--min`/`--min-file` say what
+  -- `coverage` (or `ci`, threading through to it) refuses under.
   -- Everything else beginning with `-` is REFUSED rather than treated
-  -- as a path. Selection space had no bottom: `--make fmt --fix` (a
+  -- as a path -- selection space had no bottom: `--make fmt --fix` (a
   -- spelling the design's own verb table promises) died as
   -- `nothing to do under: --fix`, and so did `--help`, `--only=x`, and
-  -- every flag a later version might add. Reserving the namespace now
-  -- is the same durability move the planned-verb rows already make for
-  -- the verb namespace.
+  -- every flag a later version might add. `flags.parse` (`_make/flags.tl`)
+  -- does the parsing; this file is at the 500-line cap.
   local paths: {string} = {}
-  baseline_wanted = false
   fix_wanted = false
+  coverage_limit.set(nil, nil)
   -- A passthrough verb's argv is its own; the split is its rule, over
   -- in _make.runverb.
   local passthrough = (INDEX[name] ~= nil and INDEX[name].passthrough) or false
@@ -372,37 +361,19 @@ local function run(argv: {string}): integer
       return stage.verdict(name, false, "no target")
     end
     paths[1] = target
-  end
-  for i = 2, (passthrough and 1 or #argv) do
-    if argv[i] == "--baseline" then
-      baseline_wanted = true
-    elseif argv[i] == "--fix" then
-      fix_wanted = true
-    elseif argv[i]:sub(1, 1) == "-" and argv[i] ~= "-" then
-      io.stderr:write("make: unknown flag '" .. argv[i] .. "' for " ..
-        name .. "\n")
-      return stage.verdict(name, false, "unknown flag")
-    else
-      paths[#paths + 1] = argv[i]
+  else
+    local words: {string} = {}
+    for i = 2, #argv do
+      words[#words + 1] = argv[i]
     end
-  end
-  if fix_wanted and name ~= "fmt" then
-    io.stderr:write("make: --fix belongs to `fmt`, not '" .. name .. "'\n")
-    return stage.verdict(name, false, "--fix")
-  end
-  if baseline_wanted and name ~= "coverage" then
-    io.stderr:write("make: --baseline belongs to `coverage`, not '" ..
-      name .. "'\n")
-    return stage.verdict(name, false, "--baseline")
-  end
-  -- A rewrite from a narrowed run is a floor built from partial data:
-  -- every unselected file measures zero and its row craters. The gate
-  -- path already skips a narrowed run rather than failing it, for the
-  -- same reason; this is the writing half of that decision.
-  if baseline_wanted and #paths > 0 then
-    io.stderr:write("make: --baseline rewrites the whole floor; " ..
-      "it takes no paths\n")
-    return stage.verdict(name, false, "--baseline takes no paths")
+    local parsed, ferr = flags.parse(name, words)
+    if not parsed then
+      io.stderr:write(ferr .. "\n")
+      return stage.verdict(name, false, "bad flag")
+    end
+    fix_wanted = parsed.fix
+    coverage_limit.set(parsed.min, parsed.min_file)
+    paths = parsed.paths
   end
 
   -- Resolve this binary BEFORE anything chdirs: a relative `./cosmic`

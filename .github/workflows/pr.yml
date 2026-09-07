@@ -84,14 +84,6 @@ jobs:
     container:
       image: buildpack-deps@sha256:cfb30ff3856780c63b00ec3ad2e4aed77ae6afce5975ebb8ad9525ec45354e2e # noble (Ubuntu 24.04)
       options: --privileged
-    # This lane IS the .cosmic-coverage recording environment — the
-    # digest-pinned image, --privileged, and the non-root builder below
-    # are exactly what makes it one (see AGENTS.md's coverage paragraph
-    # and cosmic/coverage/SENSITIVITY.md). `_make.policy.write_baseline`
-    # refuses `--baseline` anywhere this is not set, so the marker lives
-    # here rather than in a developer's shell.
-    env:
-      COSMIC_COVERAGE_ENV: "1"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -214,12 +206,19 @@ jobs:
             assert(require("cosmic.quicksand.netns").bring_up("lo"))
         run: |
           # Captured, so a failure can be READ. The gate's verdict line
-          # and the coverage ratchet's row list are the last things it
-          # prints, and they end up hundreds of lines back once the
-          # failure steps and the runner's own cleanup follow them —
-          # which cost several CI cycles here, each one a full re-run to
-          # ask a question the first run had already answered.
+          # and the coverage gate's "declined:" summary are the last
+          # things it prints, and they end up hundreds of lines back
+          # once the failure steps and the runner's own cleanup follow
+          # them — which cost several CI cycles here, each one a full
+          # re-run to ask a question the first run had already answered.
           # pipefail, or tee's clean exit would hide the gate's.
+          #
+          # The tree's coverage floor is `--min 76 --min-file 0` (measured at
+          # #1778); it is stated on the invocation below only once the pinned
+          # release accepts the flags — generation 1 runs the PIN's own make
+          # engine, which refuses an unknown flag before anything builds (the
+          # cold-build rule), so the numbers land with the pin bump that
+          # follows the next release (board item COZq_Kk4X).
           set -euxo pipefail
           unshare --net -- bash -euxo pipefail -c '
             o/bootstrap/cosmic -e "$NETNS"

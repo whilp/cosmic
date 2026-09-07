@@ -40,7 +40,7 @@ build when the committed copy drifts.
 | D3 | "no silent bugs" is the anchor promise, at full depth | active | [→](d03-no-silent-bugs.md) |
 | D4 | portability is delegated to Cosmopolitan | active | [→](d04-portability-via-cosmopolitan.md) |
 | D5 | upstream-first, fork-if-blocked on Teal | active | [→](d05-upstream-first-teal.md) |
-| D6 | the promise transfers via runtime defaults plus ratchets | active | [→](d06-defaults-plus-ratchets.md) |
+| D6 | the promise transfers via runtime defaults plus ratchets | amended 2026-09 (coverage ratchet replaced by a command-line floor) | [→](d06-defaults-plus-ratchets.md) |
 | D7 | contained by default where the OS can enforce it | amended 2026-08 (rescoped by D25) | [→](d07-contained-where-enforceable.md) |
 | D8 | eval win condition: correctness gates, then efficiency | active | [→](d08-eval-win-condition.md) |
 | D9 | batteries include serving; not urgently | active | [→](d09-batteries-include-serving.md) |
@@ -61,7 +61,7 @@ build when the committed copy drifts.
 | D24 | slot 2 may carry a structured error: concrete per-module records, one `Failure` supertype | active | [→](d24-structured-failures.md) |
 | D25 | goals split into ranked outcomes and instruments; ratchets gate, peers are the scoreboard | amended 2026-09 (D45 replaced the paired-comparison ranking method) | [→](d25-outcomes-and-instruments.md) |
 | D26 | a decision record: four sections, a status header, amended in place | active | [→](d26-decision-records.md) |
-| D27 | every committed floor is a `cosmic.literal` file, and duplicate keys are refused by default | active | [→](d27-one-committed-floor.md) |
+| D27 | every committed floor is a `cosmic.literal` file, and duplicate keys are refused by default | amended 2026-09 (coverage's floor is no longer a file) | [→](d27-one-committed-floor.md) |
 | D28 | a validating decode is combinators the checker checks, not a table of type-name strings | active | [→](d28-shape-combinators.md) |
 | D29 | a test runs because it is defined, not because its file called it | active | [→](d29-tests-run-because-defined.md) |
 | D30 | a cosmic module throws or exits only where no caller could receive the value | active | [→](d30-throw-exit-boundaries.md) |

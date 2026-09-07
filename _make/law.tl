@@ -42,7 +42,8 @@ local type Verb = types.Verb
 --- Not an exemption from the law -- an application of it. There is no
 --- S-restriction of "remove the build directory" or of a verdict over
 --- every gate, so the honest answer to a path is a refusal naming why,
---- which is what `--baseline` already says about the coverage floor.
+--- which is what `_build/casts.tl --baseline` already says about the
+--- casts floor.
 local WHOLE < const >: {string: string} = {
   clean = "it removes the build directory",
   ci = "it is the whole gate",

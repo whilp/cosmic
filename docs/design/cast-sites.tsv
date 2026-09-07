@@ -11,6 +11,7 @@ _perf/bench/micro_bench.tl	scenarios	1	return (a as ip.Addr):format()	record uni
 _tool/coverage/lines.tl	executable_lines	1	walk(ast as {any: any}, {}, out) -- cast: ast node as generic map	tl compiler surface
 _tool/coverage/lines.tl	walk	1	for _, child in ipairs(node as {any}) do -- cast: array view of ast map	tl compiler surface
 _tool/coverage/lines.tl	walk	2	for _, e in ipairs(v as {any}) do -- cast: array view of ast map	tl compiler surface
+_tool/coverage/minimum_test.tl	run_gate	1	return code_or_err as integer, check.must(fs.read(stderr_path)) -- cast: pcall's return is `any`, and gate always returns an integer	pcall return shape
 _tool/discover.tl	definitions_of	1	for _, stmt in ipairs(program as {any}) do	tl compiler surface
 _tool/discover.tl	definitions_of	2	local node = stmt as {string: any} -- cast: tl AST node fields	tl compiler surface
 _tool/discover.tl	definitions_of	3	local name_node = node["name"] as {string: any}	tl compiler surface
