@@ -409,8 +409,10 @@ bytes ran" without trusting the thing under test to report on itself.
 - `_make/artifact_test.tl`, unchanged and still passing: a built
   artifact resolves from its own zip and ignores an ambient `LUA_PATH`.
 
-Note what moved in `.cosmic-coverage` and why: several files' *total*
-coverable lines changed without their sources changing
+Note what moved in `.cosmic-coverage` (the committed coverage floor at
+the time; a command-line `--min`/`--min-file` pair since) and why:
+several files' *total* coverable lines changed without their sources
+changing
 (`_make/project.tl` 221 → 193, `cosmic/check.tl` 92 → 113). That is the
 change working. Those totals were measured against the binary's
 embedded copies; they are now measured against what the graph built.

@@ -346,8 +346,8 @@ truncation.
 
 ```bash
 o/bin/cosmic --make test                # all tests
-o/bin/cosmic --make coverage            # tests + line coverage, ratcheted vs .cosmic-coverage
-o/bin/cosmic --make coverage --baseline # rewrite the committed floor
+o/bin/cosmic --make coverage            # tests + line coverage; report and pass
+o/bin/cosmic --make coverage --min PCT [--min-file PCT]  # refuse under either floor
 o/bin/cosmic --make test cosmic/string_test.tl   # narrow by path
 o/bin/cosmic --make example             # run Example_* functions
 o/bin/cosmic --make benchmark           # run every *_benchmark.tl
@@ -360,19 +360,15 @@ checking the caller of a module whose signature just changed, or the
 checker reports the old arity — `wrong number of arguments (given 2,
 expects 1)` against a two-parameter signature is the shape of it.
 
-**The `.cosmic-coverage` floor is recorded in one environment, not
-yours**: CI's `ci` lane in `.github/workflows/pr.yml` — a digest-pinned
-`buildpack-deps:noble` container, run `--privileged`, built and gated as
-the non-root `builder` user, network-fenced to loopback after `fetch`.
-Coverage is environment-sensitive (`cosmic/coverage/SENSITIVITY.md`):
-root vs. non-root, Landlock, Linux namespaces, a real tty, a free port,
-and even which compiler built the binary under test all move rows,
-sometimes by 2x. `--make coverage --baseline` therefore **refuses**
-anywhere `COSMIC_COVERAGE_ENV=1` is not set — that lane sets it for
-itself; a developer's machine never should. Move the one row your
-change actually affects by hand-editing its `covered`/`total` pair in
-`.cosmic-coverage` directly; a whole-floor rewrite is only for the
-recording environment itself.
+**Coverage has no committed floor to hand-edit.** `--min PCT` refuses
+when overall line coverage falls under PCT; `--min-file PCT` does the
+same for every file, naming each one under the floor with its
+percentage; with neither option the stage reports and passes. This
+repo's own `--make ci` invocation (`.github/workflows/pr.yml`) states
+both numbers, because coverage is environment-sensitive
+(`cosmic/coverage/SENSITIVITY.md`): root vs. non-root, Landlock, Linux
+namespaces, a real tty, a free port, and even which compiler built the
+binary under test move the numbers, sometimes by 2x.
 
 test files use a simple assertion pattern:
 ```teal

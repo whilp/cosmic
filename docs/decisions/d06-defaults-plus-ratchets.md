@@ -1,7 +1,7 @@
 # D6 — the promise transfers via runtime defaults plus ratchets
 
 - **date:** 2026-07
-- **status:** active
+- **status:** amended 2026-09 (coverage ratchet replaced by a command-line floor)
 - **context:** the gates protecting cosmic itself (format, coverage
   ratchet, examples, verdict discipline) live in cosmic's Makefile;
   user projects get pieces, not the apparatus.
@@ -15,4 +15,10 @@
   discipline from one command; the gate verb becomes stable-in-practice
   because everything depends on it (in tension with D10 — resolved by
   pinning, as D10 prescribes).
+- **amended 2026-09 (coverage ratchet replaced by a command-line floor):**
+  the gate verb still runs format, strict types, tests, examples and a
+  coverage check, but coverage no longer means "ratcheting against
+  committed baselines" — `--make coverage --min PCT [--min-file PCT]`
+  refuses under either number and reports and passes with neither;
+  there is no baseline file to inherit.
 

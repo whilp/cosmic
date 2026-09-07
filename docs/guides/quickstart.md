@@ -115,18 +115,16 @@ project has a `*_example.tl` file.)
 directory, another machine, another OS — and it runs with no dependency
 on the project tree or on `cosmic` itself.
 
-the first `ci` run will note there is no coverage baseline; write one
-and commit it to start the ratchet:
+`coverage` reports and passes with no floor at all; add one when the
+project is ready to hold a line:
 
 ```bash
-cosmic --make coverage --baseline    # writes .cosmic-coverage
+cosmic --make coverage --min 90 --min-file 60    # refuse under either
 ```
 
-it is a floor, not a snapshot: a later rewrite writes this run's exact
-measurement into every row, raises and drops alike, and refuses
-outright if it would lower more than half the floor's rows at
-once — that shape is a partial or stale run, not a real regression.
-review a `--baseline` diff like any other change before committing it.
+`--min` is overall line coverage, `--min-file` is every file's, both
+computed fresh from the same `.cov` data each run — no committed
+baseline to write, merge, or review.
 
 ## when something fails
 

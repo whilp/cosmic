@@ -1,8 +1,8 @@
 # Coverage's environment-sensitive tests
 
-The ratchet floors in `.cosmic-coverage` encode **which lines execute**, and
-that depends on the machine. Two of CI's heaviest complications exist to
-hold those inputs still:
+The `--min`/`--min-file` floors `--make coverage` is invoked with
+encode **which lines execute**, and that depends on the machine. Two of
+CI's heaviest complications exist to hold those inputs still:
 
 - the **digest-pinned container** (#734) — an OS image roll moved the
   floor (#722's churn), so the image became a pin;
@@ -46,22 +46,14 @@ belongs here the day it is written.
 3. Only then look at the diff.
 
 The floors are deliberately **conservative** — most are well under what
-a full lane achieves, because the file is a floor and not a snapshot.
-Do not "refresh" it to make one row pass. A rewrite writes this
-machine's exact measurement into every row, raises and drops alike, and
-the only thing that can refuse it is `corpus_guard`'s breadth check —
-it fires when more than half the committed floor's rows would drop at
-once, not on any single row. For the environment-sensitive rows above,
-that guard is not a safety net: the rows a laptop or a partial run
-cannot measure are precisely the ones that would drop, and a run
-dropping only a handful of them — a laptop missing root, Landlock, a
-real tty, a free port — stays well under the 50% threshold and writes
-straight through, silently. Nothing catches that but reading the diff.
-Baking that machine's environment into the committed floor is the
-failure this whole file is about — treat every `--baseline` diff
-touching a row in the table above as suspect until you have checked it
-against this file, not as pre-cleared because the tool ran without
-complaint.
+a full lane achieves, because the numbers gate a whole tree, not a
+single row's snapshot. Do not raise `--min`/`--min-file` in
+`.github/workflows/pr.yml` to match a number only your machine
+measured: the environment-sensitive rows above are exactly the ones a
+laptop under-measures, and a change that raises the floor to fit a
+friendlier host bakes that host's ceiling into everyone's gate. Move
+the two numbers only from CI's own measurement, and read this file
+first when either one refuses.
 
 ## Why this file exists
 

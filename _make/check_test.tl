@@ -235,17 +235,36 @@ local function test_flags_are_a_namespace()
   assert(unknown.err:find("unknown flag '--nope' for check", 1, true),
     "got: " .. unknown.err)
 
-  local misplaced = make(root, "check", "--baseline")
+  local misplaced = make(root, "check", "--min", "80")
   assert(misplaced.code == 1, "a flag on the wrong verb must fail")
-  assert(misplaced.err:find("belongs to `coverage`", 1, true),
+  assert(misplaced.err:find("--min/--min-file belong to", 1, true),
     "got: " .. misplaced.err)
 
-  -- A rewrite from a narrowed run is a floor built from partial data:
-  -- every unselected file measures zero and its row craters.
-  local narrowed = make(root, "coverage", "--baseline", "db")
-  assert(narrowed.code == 1, "--baseline must refuse a selection")
-  assert(narrowed.err:find("takes no paths", 1, true),
-    "got: " .. narrowed.err)
+  local not_a_number = make(root, "coverage", "--min", "high")
+  assert(not_a_number.code == 1, "--min needs a number")
+  assert(not_a_number.err:find("--min needs a percentage", 1, true),
+    "got: " .. not_a_number.err)
+end
+
+-- `--min`/`--min-file` refuse below the floor and name what missed it;
+-- neither number depends on what this fixture actually measures --
+-- no real project clears 101% and none falls under 0% -- so the
+-- assertion holds regardless of the toolchain that built it.
+local function test_coverage_min_gate_end_to_end()
+  local root = app("coveragemin")
+  local passes = make(root, "coverage", "--min", "0", "--min-file", "0")
+  assert(passes.code == 0, "0%% must never refuse: " .. passes.err)
+  assert(passes.out:find("coverage minimum ok", 1, true),
+    "got: " .. passes.out)
+
+  local fails = make(root, "coverage", "--min", "101")
+  assert(fails.code ~= 0, "no project clears 101%%")
+  assert(fails.err:find("under %-%-min 101"), "got: " .. fails.err)
+  assert(fails.err:find("declined:", 1, true),
+    "the last line must survive truncation: " .. fails.err)
+
+  local plain = make(root, "coverage")
+  assert(plain.code == 0, "no floor at all must report and pass: " .. plain.err)
 end
 
 -- `fmt --fix` rewrites rather than reports, in process: a `.fmt.got`

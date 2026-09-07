@@ -30,7 +30,7 @@ the interface.
 | `test` | run `*_test.tl` and report | ✅ |
 | `example` | run `Example_*` functions and check their output | ✅ |
 | `benchmark` | run every `*_benchmark.tl` | ✅ |
-| `coverage` | tests + line coverage, ratcheted against `.cosmic-coverage` | ✅ |
+| `coverage` | tests + line coverage, gated by `--min`/`--min-file` | ✅ |
 | `docs` | extract the doc index | ✅ |
 | `ci` | fmt, check, example, lint, coverage — the gate; tests run once, instrumented, in `coverage` | ✅ |
 | `clean` | remove `o/`, sparing `o/bootstrap` | ✅ |
@@ -387,9 +387,9 @@ every verb answers about paths. most restrict: `V S` is the
 `S`-restriction of a full `V`. two cannot, and say so instead of
 accepting a path and ignoring it — `clean` removes the build directory
 and `ci` is a verdict over the whole gate, so both refuse with the
-reason. `coverage --baseline` refuses for the same reason one layer in:
-a floor rewritten from partial data craters every row you did not
-select.
+reason. `coverage --min`/`--min-file` skip for the same reason one
+layer in: a threshold computed from partial data reads every unselected
+file as uncovered.
 
 paths are resolved against the model BEFORE anything is built, so a
 typo costs a directory walk rather than a full rebuild.
@@ -432,23 +432,12 @@ never launder a gate's status through a pipe (`--make ci | tail`
 returns tail's status) — use `set -o pipefail`, or read the verdict
 line.
 
-the coverage floor is `.cosmic-coverage`, namespaced because a bare
-`.coverage` is coverage.py's binary data file and cosmic targets
-polyglot repos. it is one row per file and no shared total line, and
-`coverage --baseline` writes this run's exact measurement into every
-row — raises and drops alike, with no clamp — so a row a change did
-not touch reappears with the same numbers this run measured, and two
-changes touching different files still have nothing in common to
-conflict on. the guard left is on breadth, not direction: a rewrite
-that would lower more than half the committed floor's rows refuses
-outright, because that shape is what a partial or stale run produces —
-a narrowed test selection, `.cov` files a rebuild left behind — not a
-real project-wide decline; a legitimate rewrite still wants reading
-like any other diff before it is committed. declare `.cosmic-coverage merge=union` in
-`.gitattributes` and what conflict remains resolves itself: both sides' rows land, and the
-ratchet reads a repeated path as its LOWER percentage — the safe direction, since a merge
-that raised a floor would fail a build for a decline neither side introduced. it says how
-many rows it resolved that way, and the next `--baseline` rewrites the file clean.
+`--make coverage` takes an optional `--min PCT` (overall line coverage)
+and `--min-file PCT` (every file's), computed from the same `.cov` data
+the plain report renders; with neither, the stage reports and passes.
+there is no committed floor to merge, hand-edit, or rewrite — the
+numbers live wherever the project's own gate is invoked, which for this
+tree is `.github/workflows/pr.yml`'s `--make ci` line.
 
 ## Environment variables
 
@@ -461,7 +450,6 @@ part of the contract:
 | `COSMIC_JOBS` | build parallelism (default: nproc) |
 | `COSMIC_MAKE_ROOT` | name the project root instead of using the cwd |
 | `COSMIC_COVERAGE` | a DIRECTORY to dump `.cov` files into |
-| `COSMIC_COVERAGE_ENV` | `1` marks the `.cosmic-coverage` recording environment; `--baseline` refuses elsewhere |
 | `COSMIC_VERSION` | the `--version` stamp, when no `.version` is committed |
 | `COSMIC_INSTRUMENTATION` | `1`/`true` emits timing spans to stderr |
 | `COSMIC_LOG_LEVEL` | `cosmic.log`'s threshold |

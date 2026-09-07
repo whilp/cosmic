@@ -51,7 +51,7 @@ local function test_unreadable_path_falls_back_to_position()
     "an unreadable path outside _make/_cli does not match")
 end
 
--- The five former `_tool/**` list entries, re-checked against the real
+-- The four former `_tool/**` list entries, re-checked against the real
 -- tree: the content rule must subsume every one of them. TEST_TMPDIR is
 -- not the root, so this reads them by repo-relative path only when the
 -- cwd actually is the root; otherwise it skips the sub-assertion aloud
@@ -64,7 +64,6 @@ local function test_content_rule_subsumes_former_tool_list()
   end
   local former_list = {
     "_tool/benchmark_test.tl",
-    "_tool/coverage/baseline_test.tl",
     "_tool/example_test.tl",
     "_tool/lint_test.tl",
     "_tool/testrun_test.tl",
