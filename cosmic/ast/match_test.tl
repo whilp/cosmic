@@ -159,6 +159,21 @@ local function test_tk_still_compared_on_leaf_kinds()
     "output(1) must NOT match print(1): the literal callee name differs")
 end
 
+--- A capture's `:PATTERN` predicate suffix restricts which candidates
+--- it binds: `$F:^test_()` matches `test_a()` (whose callee's own `tk`
+--- starts with `test_`) but not `run()`.
+local function test_capture_predicate_matches_only_names_the_pattern_allows()
+  local pattern = pattern_ok("$F:^test_()")
+  local hit = parse_ok("test_a()", "hit.tl")[1]
+  local miss = parse_ok("run()", "miss.tl")[1]
+  local caps = match.match(pattern, hit)
+  assert(caps ~= nil, "test_a() must match $F:^test_()")
+  assert(caps["_F"] ~= nil and caps["_F"].tk == "test_a",
+    "captured node: " .. tostring(caps["_F"] and caps["_F"].tk))
+  assert(match.match(pattern, miss) == nil,
+    "run() must NOT match $F:^test_(): its name fails the ^test_ predicate")
+end
+
 --- `desugar` rewrites both metavariable spellings before lexing, and
 --- leaves everything else byte-for-byte -- confirmed directly rather
 --- than only through a compiled pattern's behavior, since a pattern
@@ -168,6 +183,8 @@ local function test_desugar_rewrites_both_spellings()
     "desugar: " .. match.desugar("f($X, $$$REST)"))
   assert(match.desugar("os.execute(cmd)") == "os.execute(cmd)",
     "desugar must leave metavariable-free source untouched")
+  assert(match.desugar("$F:^test_()") == "_F()",
+    "desugar: " .. match.desugar("$F:^test_()"))
 end
 
 --- `os.execute($X)` against `_types/tlast.tl`.

@@ -18,7 +18,7 @@ return {
   ["cosmic/_teal_ast_test.tl"] = 4,
   ["cosmic/_teal_discard.tl"] = 3,
   ["cosmic/_teal_engine.tl"] = 1,
-  ["cosmic/ast/match.tl"] = 10,
+  ["cosmic/ast/match.tl"] = 11,
   ["cosmic/ast/match_test.tl"] = 3,
   ["cosmic/ast/node.tl"] = 1,
   ["cosmic/ast/walk.tl"] = 4,

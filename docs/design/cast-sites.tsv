@@ -38,10 +38,11 @@ cosmic/_teal_discard.tl	issues	1	local get_report = rep["get_report"] as functio
 cosmic/_teal_discard.tl	walk	1	local arr = node as {any} -- cast: a statements node is array-shaped	tl compiler surface
 cosmic/_teal_discard.tl	walk	2	local arr = args as {any} -- cast: an expression_list is array-shaped	tl compiler surface
 cosmic/_teal_engine.tl	process_source	1	local result = result_or_err as TlResult	pcall return shape
-cosmic/ast/match.tl	<chunk>	1	local name = pv["tk"] as string -- cast: narrowed to string by is_capture's own check	tl compiler surface
-cosmic/ast/match.tl	<chunk>	2	local pt = prev as {any: any} -- cast: generic ast node view of a prior binding	tl compiler surface
-cosmic/ast/match.tl	<chunk>	3	caps[name] = nv as Node -- cast: a matched candidate node is a real Node	tl compiler surface
-cosmic/ast/match.tl	<chunk>	4	if not (k is integer) and not IGNORE_KEYS[k as string] then -- cast: non-integer key is a field name	tl compiler surface
+cosmic/ast/match.tl	<chunk>	1	local pnode = pv as Node -- cast: capture leaf is a node from the compiled pattern's own tree	tl compiler surface
+cosmic/ast/match.tl	<chunk>	2	local name = pv["tk"] as string -- cast: narrowed to string by is_capture's own check	tl compiler surface
+cosmic/ast/match.tl	<chunk>	3	local pt = prev as {any: any} -- cast: generic ast node view of a prior binding	tl compiler surface
+cosmic/ast/match.tl	<chunk>	4	caps[name] = nv as Node -- cast: a matched candidate node is a real Node	tl compiler surface
+cosmic/ast/match.tl	<chunk>	5	if not (k is integer) and not IGNORE_KEYS[k as string] then -- cast: non-integer key is a field name	tl compiler surface
 cosmic/ast/match.tl	arr	1	return t as {any} -- cast: array view of a generic ast map	tl compiler surface
 cosmic/ast/match.tl	rest_capture_name	1	return node["tk"] as string -- cast: narrowed to string by is_rest_capture's own check	tl compiler surface
 cosmic/ast/match.tl	rest_capture_name	2	and #arr(node["e2"] as {any: any}) == 0 then -- cast: generic view of a call's args node	tl compiler surface
